@@ -2,7 +2,7 @@
 // 브라우저 대신 서버가 API를 호출 → API 키가 사용자에게 노출되지 않음
 
 import { searchRestaurants } from '@/lib/kakao';
-import { attachBlogCounts } from '@/lib/naver';
+import { naverEnabled } from '@/lib/naver';
 import { loadPublicRestaurants } from '@/lib/publicData';
 import { buildIndex, matchPlace } from '@/lib/match';
 import { mockPlaces } from '@/lib/mock';
@@ -60,17 +60,11 @@ export async function GET(req) {
   places = places.filter((p) => !isListedClosed(p, closedList));
   const hiddenCount = before - places.length;
 
-  // 3) 네이버 블로그 후기 수 (키가 있을 때만)
-  if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
-    // 하루 호출 한도(25,000회)를 지키기 위해 가까운 순으로 최대 N곳까지만 후기 수 조회
-    const limit = Number(process.env.NAVER_MAX_LOOKUPS) || 100;
-    const { places: withBlog, failed } = await attachBlogCounts(places.slice(0, limit));
-    places = [...withBlog, ...places.slice(limit).map((p) => ({ ...p, blogCount: null }))];
-    sources.blog = 'naver';
-    if (failed) warnings.push(`네이버 후기 수 ${failed}건 조회 실패`);
-  } else {
-    places = places.map((p) => ({ ...p, blogCount: null }));
-  }
+  // 3) 네이버 블로그 후기 수는 여기서 기다리지 않음 → 화면이 /api/blog 로 나중에 따로 받아 감
+  //    (가게 목록과 지도를 먼저 빠르게 보여주기 위해)
+  places = places.map((p) => ({ ...p, blogCount: null }));
+  if (naverEnabled()) sources.blog = 'naver';
+  const blogLimit = Number(process.env.NAVER_MAX_LOOKUPS) || 100;
 
   // 4) 공공데이터 인허가 정보 (CSV 또는 API가 설정돼 있을 때만)
   try {
@@ -89,5 +83,5 @@ export async function GET(req) {
     warnings.push(`공공데이터 불러오기 실패: ${e.message}`);
   }
 
-  return Response.json({ places, sources, warnings, hiddenCount });
+  return Response.json({ places, sources, warnings, hiddenCount, blogLimit });
 }
