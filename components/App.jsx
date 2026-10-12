@@ -66,6 +66,7 @@ export default function App({ defaultCenter, centerName }) {
   const [selectedId, setSelectedId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [picked, setPicked] = useState(null);
+  const [blogProgress, setBlogProgress] = useState(null);
 
   // 반경 최대치(1500m)로 한 번 불러오고, 작은 반경은 화면에서 거름 → API 호출 절약
   useEffect(() => {
@@ -78,13 +79,59 @@ export default function App({ defaultCenter, centerName }) {
         if (!r.ok) throw new Error(j.error || '불러오기 실패');
         return j;
       })
-      .then((j) => alive && setData(j))
+      .then((j) => {
+        if (!alive) return;
+        setData(j);
+        if (j.sources?.blog === 'naver') loadBlogCounts(j, () => alive);
+      })
       .catch((e) => alive && setError(e.message))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center]);
+
+  // 목록을 먼저 보여준 뒤, 가까운 가게부터 20곳씩 후기 수를 받아서 채워 넣음
+  async function loadBlogCounts(j, isAlive) {
+    const targets = j.places.slice(0, j.blogLimit || 100);
+    const chunks = [];
+    for (let i = 0; i < targets.length; i += 20) chunks.push(targets.slice(i, i + 20));
+    setBlogProgress({ done: 0, total: targets.length });
+
+    let done = 0;
+    let failed = 0;
+    async function run(chunk) {
+      try {
+        const r = await fetch('/api/blog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ places: chunk.map(({ id, name, jibun }) => ({ id, name, jibun })) }),
+        });
+        const res = await r.json();
+        if (!r.ok) throw new Error(res.error);
+        failed += res.failed || 0;
+        if (!isAlive()) return;
+        setData((d) => ({
+          ...d,
+          places: d.places.map((p) => (p.id in res.counts ? { ...p, blogCount: res.counts[p.id] } : p)),
+        }));
+      } catch {
+        failed += chunk.length;
+      }
+      done += chunk.length;
+      if (isAlive()) setBlogProgress({ done, total: targets.length });
+    }
+
+    // 동시에 2묶음씩 요청
+    for (let i = 0; i < chunks.length; i += 2) {
+      await Promise.all(chunks.slice(i, i + 2).map(run));
+      if (!isAlive()) return;
+    }
+    if (failed && isAlive()) {
+      setData((d) => ({ ...d, warnings: [...(d.warnings || []), `네이버 후기 수 ${failed}건 조회 실패`] }));
+    }
+  }
 
   useEffect(() => {
     if (!weatherOn || weather) return;
@@ -208,7 +255,12 @@ export default function App({ defaultCenter, centerName }) {
               onChange={setSort}
               options={SORTS.map(([v, t]) => [v, t, !hasBlog && v !== 'distance'])}
             />
-            {!hasBlog && !loading && (
+            {blogProgress && blogProgress.done < blogProgress.total && (
+              <p className="hint">
+                네이버 후기 수 불러오는 중… {blogProgress.done}/{blogProgress.total}곳 (가까운 곳부터)
+              </p>
+            )}
+            {!hasBlog && !loading && !(blogProgress && blogProgress.done < blogProgress.total) && (
               <p className="hint">
                 후기 수 데이터가 없어서 지금은 거리순으로만 정렬돼요. 네이버 검색 API 키를 넣으면 추천순과 후기 많은 순이 켜져요.
               </p>
