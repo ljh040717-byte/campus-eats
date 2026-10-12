@@ -1,0 +1,21 @@
+{
+  "name": "campus-eats",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "filter-data": "node scripts/filter-public-data.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "iconv-lite": "^0.7.3",
+    "next": "^15.5.27",
+    "papaparse": "^5.7.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "private": true
+}
