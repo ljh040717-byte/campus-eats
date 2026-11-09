@@ -250,50 +250,109 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 .pin-mini:hover { opacity: 1; transform: scale(1.3); }
 
-/* ── 🎲 로또 추첨 화면 ───────────────────── */
+/* ── 🎲 뽑기 화면 (가챠 머신, 플랫·스티커 스타일) ── */
 .lotto {
+  --ink: #2B2A4C;
   position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 35%, #3a6cf4 0%, #2251e0 45%, #142f8f 100%);
-  color: #fff; animation: lotto-in .25s ease-out;
+  padding: 20px 16px; overflow-y: auto;
+  background-color: #FFF4E4;
+  background-image: radial-gradient(#FFD9A8 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+  color: var(--ink); animation: lotto-in .25s ease-out;
 }
-@keyframes lotto-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lotto-in { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
 .lotto-close {
-  position: absolute; top: 18px; right: 18px; width: 40px; height: 40px; border-radius: 50%;
-  border: 0; background: rgba(255,255,255,.18); color: #fff; font-size: 18px;
+  position: absolute; top: 16px; right: 16px; width: 42px; height: 42px; border-radius: 50%;
+  border: 3px solid var(--ink); background: #fff; color: var(--ink); font-size: 16px; font-weight: 900;
+  box-shadow: 0 3px 0 var(--ink); cursor: pointer;
 }
-.lotto-title { margin: 0 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
-.lotto-stage { position: relative; width: 320px; height: 420px; }
-.lotto-canvas { display: block; transition: opacity .3s, filter .3s; }
-.lotto-canvas.dim { opacity: .25; filter: blur(2px); }
+.lotto-title {
+  margin: 0; font-family: 'Jua', 'Pretendard Variable', sans-serif; font-size: 34px; line-height: 1.2; letter-spacing: -0.01em;
+}
+.lotto-sub { margin: 4px 0 8px; font-size: 14px; font-weight: 600; color: #6b6a86; }
+.lotto-canvas { display: block; max-width: 100%; height: auto !important; }
 
-.lotto-reveal {
-  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 0 8px;
+.lotto-reveal { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 640px; }
+.lotto-cards {
+  list-style: none; margin: 14px 0 0; padding: 0; width: 100%;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+.lotto-cards li { animation: card-pop .5s var(--d) cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes card-pop { from { transform: translateY(24px) scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
+.lotto-card {
+  position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 22px 10px 16px; border: 3px solid var(--ink); border-radius: 22px; background: #fff; color: var(--ink);
+  box-shadow: 0 5px 0 var(--ink); cursor: pointer; font: inherit; transition: transform .12s, box-shadow .12s;
+}
+.lotto-card:hover { transform: translateY(-3px); box-shadow: 0 8px 0 var(--ink); }
+.lotto-card:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+.lotto-num {
+  position: absolute; top: -13px; left: -10px; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--ink); color: #fff; display: grid; place-items: center; font-family: 'Jua', sans-serif; font-size: 16px;
 }
 .lotto-ball {
-  width: 132px; height: 132px; border-radius: 50%; display: grid; place-items: center;
-  background: radial-gradient(circle at 32% 28%, #fff 0%, var(--ball) 30%, color-mix(in srgb, var(--ball) 70%, #000) 100%);
-  box-shadow: 0 18px 40px rgba(0,0,0,.35); animation: ball-pop .6s cubic-bezier(.2,1.6,.4,1) both;
+  width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; font-size: 36px;
+  background: var(--ball); border: 3px solid var(--ink); position: relative;
 }
-.lotto-ball span {
-  width: 74px; height: 74px; border-radius: 50%; background: rgba(255,255,255,.95);
-  display: grid; place-items: center; font-size: 42px;
+.lotto-ball::after {
+  content: ''; position: absolute; top: 12px; left: 13px; width: 13px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,.85); transform: rotate(-35deg);
 }
-@keyframes ball-pop { from { transform: scale(.2) rotate(-180deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
-.lotto-reveal h2 {
-  margin: 18px 0 4px; font-size: 28px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.25;
-  animation: rise .5s .25s ease-out both;
+.lotto-card b { font-family: 'Jua', 'Pretendard Variable', sans-serif; font-weight: 400; font-size: 18px; line-height: 1.25; word-break: keep-all; text-align: center; }
+.lotto-meta { font-size: 13px; font-weight: 600; color: #6b6a86; }
+
+.lotto-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; animation: card-pop .5s .3s both; }
+.lotto-actions button {
+  border: 3px solid var(--ink); border-radius: 999px; padding: 11px 20px; font-family: 'Jua', 'Pretendard Variable', sans-serif;
+  font-size: 17px; box-shadow: 0 4px 0 var(--ink); cursor: pointer; color: var(--ink);
 }
-.lotto-reveal p { margin: 0; font-size: 14px; opacity: .85; animation: rise .5s .35s ease-out both; }
-@keyframes rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
-.lotto-actions { display: flex; gap: 8px; margin-top: 22px; animation: rise .5s .45s ease-out both; }
-.lotto-actions button { border: 0; border-radius: 999px; padding: 11px 18px; font-weight: 700; font-size: 14px; }
-.lotto-again { background: rgba(255,255,255,.18); color: #fff; }
-.lotto-go { background: #fff; color: var(--blue); }
-.lotto-timer { width: 160px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.2); margin-top: 18px; overflow: hidden; }
-.lotto-timer span { display: block; height: 100%; background: #fff; transform-origin: left; animation: timer linear both; }
-@keyframes timer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.lotto-actions button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.lotto-again { background: #fff; }
+.lotto-go { background: #FFC94D; }
+
+@media (max-width: 560px) {
+  .lotto { justify-content: flex-start; padding-top: 56px; }
+  .lotto-title { font-size: 28px; }
+  .lotto-cards { grid-template-columns: 1fr; gap: 12px; }
+  .lotto-card { flex-direction: row; padding: 12px 14px; gap: 12px; text-align: left; }
+  .lotto-card b { text-align: left; flex: 1; }
+  .lotto-ball { width: 52px; height: 52px; font-size: 26px; flex: none; }
+  .lotto-ball::after { top: 8px; left: 9px; width: 10px; height: 6px; }
+  .lotto-meta { flex: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .lotto, .lotto-ball, .lotto-reveal h2, .lotto-reveal p, .lotto-actions { animation: none; }
+  .lotto, .lotto-cards li, .lotto-actions { animation: none; }
 }
+
+/* ── 뽑힌 후보 3곳: 지도 핀 + 패널 칩 ── */
+.pin--pick .pin-icon {
+  width: 42px; height: 42px; font-size: 22px; background: var(--pick, #fff);
+  box-shadow: 0 3px 0 #2B2A4C, inset 0 0 0 3px #2B2A4C;
+}
+.pin--pick .pin-label {
+  background: #fff; color: #2B2A4C; border: 2.5px solid #2B2A4C; box-shadow: 0 2px 0 #2B2A4C;
+  font-family: 'Jua', 'Pretendard Variable', sans-serif; font-weight: 400; font-size: 14px;
+}
+.pin-num {
+  position: absolute; top: -8px; left: -6px; width: 20px; height: 20px; border-radius: 50%;
+  background: #2B2A4C; color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+}
+.pin--pick { position: relative; z-index: 20; animation: pick-bounce .6s cubic-bezier(.2,1.6,.4,1) both; }
+.pin--pick.pin--on .pin-icon { width: 50px; height: 50px; font-size: 26px; }
+.pin--pick.pin--on .pin-label { background: #FFC94D; }
+@keyframes pick-bounce { from { transform: translateY(-18px) scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.picks { margin-top: 12px; padding: 12px; border-radius: 16px; background: #FFF4E4; border: 2px solid #2B2A4C; }
+.picks-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; font-family: 'Jua', sans-serif; font-size: 16px; color: #2B2A4C; }
+.picks-head button { border: 0; background: none; color: #6b6a86; font-size: 12.5px; cursor: pointer; }
+.picks ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pick-chip {
+  width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 12px;
+  border: 2px solid #2B2A4C; background: #fff; color: #2B2A4C; font: inherit; text-align: left; cursor: pointer;
+}
+.pick-chip.on { background: #FFC94D; }
+.pick-chip i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: #2B2A4C; color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.pick-chip span.ic { width: 30px; height: 30px; border-radius: 50%; background: var(--pick); border: 2px solid #2B2A4C; display: grid; place-items: center; font-size: 16px; flex: none; }
+.pick-chip b { flex: 1; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-chip em { font-style: normal; font-size: 12.5px; color: #6b6a86; flex: none; }
