@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapView from './MapView';
-import { filterAndScore, isNew, isOld, mainCategory } from '@/lib/score';
+import { filterAndScore, isNew, isOld, subCategory, foodGroup, foodColors, FOOD_GROUPS, FOOD_COLORS } from '@/lib/score';
 
 const RADII = [300, 500, 1000, 1500];
 const SORTS = [
@@ -29,13 +29,28 @@ function Segmented({ options, value, onChange, label }) {
   );
 }
 
-function Chip({ on, onClick, children, disabled, title }) {
+function Chip({ on, onClick, children, disabled, title, icon }) {
   return (
     <button className={`chip${on ? ' on' : ''}`} onClick={onClick} disabled={disabled} title={title} aria-pressed={on}>
+      {icon && <span className="chip-icon" aria-hidden="true">{icon}</span>}
       {children}
     </button>
   );
 }
+
+// 큰 아이콘 타일 (음식 종류)
+function Tile({ on, onClick, icon, label, count, hint }) {
+  return (
+    <button className={`tile${on ? ' on' : ''}`} onClick={onClick} aria-pressed={on} title={hint} disabled={!count}>
+      <span className="tile-icon" aria-hidden="true">{icon}</span>
+      <span className="tile-label">{label}</span>
+      <span className="tile-count">{count}</span>
+    </button>
+  );
+}
+
+const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
+const COLOR_BY_KEY = Object.fromEntries(FOOD_COLORS.map((c) => [c.key, c]));
 
 function NumberField({ label, value, onChange, unit }) {
   return (
@@ -53,6 +68,7 @@ export default function App({ defaultCenter, centerName }) {
   const [radius, setRadius] = useState(1000);
   const [sort, setSort] = useState('score');
   const [categories, setCategories] = useState([]);
+  const [colors, setColors] = useState([]);
   const [newOnly, setNewOnly] = useState(false);
   const [oldOnly, setOldOnly] = useState(false);
   const [hideClosed, setHideClosed] = useState(true);
@@ -141,11 +157,18 @@ export default function App({ defaultCenter, centerName }) {
       .catch(() => setWeather({ source: 'unavailable' }));
   }, [weatherOn, weather, center]);
 
-  const allCategories = useMemo(() => {
-    const counts = new Map();
-    data.places.forEach((p) => counts.set(mainCategory(p.category), (counts.get(mainCategory(p.category)) || 0) + 1));
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
-  }, [data.places]);
+  // 반경 안의 가게 수를 음식 종류별·색깔별로 셈 (타일에 숫자로 표시)
+  const counts = useMemo(() => {
+    const group = {};
+    const color = {};
+    data.places.forEach((p) => {
+      if (p.distance > radius) return;
+      const g = foodGroup(p);
+      group[g] = (group[g] || 0) + 1;
+      foodColors(p).forEach((c) => (color[c] = (color[c] || 0) + 1));
+    });
+    return { group, color };
+  }, [data.places, radius]);
 
   // 후기 수가 하나라도 있어야 추천순·후기순이 의미가 있음 (0개도 데이터로 인정)
   const hasBlog = data.places.some((p) => p.blogCount != null);
@@ -153,10 +176,10 @@ export default function App({ defaultCenter, centerName }) {
   const list = useMemo(
     () =>
       filterAndScore(data.places, {
-        radius, categories, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather,
+        radius, categories, colors, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather,
         sort: hasBlog ? sort : 'distance',
       }),
-    [data.places, radius, categories, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather, sort, hasBlog]
+    [data.places, radius, categories, colors, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather, sort, hasBlog]
   );
 
   const hasLicense = data.places.some((p) => p.license);
@@ -170,6 +193,10 @@ export default function App({ defaultCenter, centerName }) {
 
   function toggleCategory(c) {
     setCategories((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]));
+  }
+
+  function toggleColor(c) {
+    setColors((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]));
   }
 
   function roulette() {
@@ -200,9 +227,9 @@ export default function App({ defaultCenter, centerName }) {
   let weatherNote = '';
   if (weatherOn && weather?.source === 'open-meteo') {
     const tips = [];
-    if (weather.wet) tips.push('가까운 곳 우선');
-    if (weather.temp <= 10) tips.push('국물 메뉴 가산점');
-    if (weather.temp >= 27) tips.push('시원한 메뉴 가산점');
+    if (weather.wet) tips.push('가까운 곳·매콤한 메뉴 우선');
+    if (weather.temp <= 10) tips.push('뜨끈한 국물 메뉴 가산점');
+    if (weather.temp >= 27) tips.push('시원하고 프레시한 메뉴 가산점');
     weatherNote = `지금 ${Math.round(weather.temp)}°C · ${weather.label}${tips.length ? ` → ${tips.join(', ')}` : ''}`;
   } else if (weatherOn && weather?.source === 'unavailable') {
     weatherNote = '날씨 정보를 불러오지 못했어요';
@@ -267,31 +294,45 @@ export default function App({ defaultCenter, centerName }) {
             )}
           </div>
 
-          {allCategories.length > 0 && (
-            <div className="group">
-              <h2>
-                음식 종류 {categories.length > 0 && <button className="link" onClick={() => setCategories([])}>전체</button>}
-              </h2>
-              <div className="chips">
-                {allCategories.map((c) => (
-                  <Chip key={c} on={categories.includes(c)} onClick={() => toggleCategory(c)}>{c}</Chip>
-                ))}
-              </div>
+          <div className="group">
+            <h2>
+              음식 종류 {categories.length > 0 && <button className="link" onClick={() => setCategories([])}>전체</button>}
+            </h2>
+            <div className="tiles">
+              {FOOD_GROUPS.map((g) => (
+                <Tile key={g.key} icon={g.icon} label={g.key} hint={g.hint} count={counts.group[g.key] || 0}
+                  on={categories.includes(g.key)} onClick={() => toggleCategory(g.key)} />
+              ))}
             </div>
-          )}
+          </div>
+
+          <div className="group">
+            <h2>
+              색깔로 고르기 {colors.length > 0 && <button className="link" onClick={() => setColors([])}>해제</button>}
+            </h2>
+            <div className="swatches">
+              {FOOD_COLORS.map((c) => (
+                <button key={c.key} className={`swatch${colors.includes(c.key) ? ' on' : ''}`} aria-pressed={colors.includes(c.key)}
+                  onClick={() => toggleColor(c.key)} disabled={!counts.color[c.key]}>
+                  <span className="swatch-dot" style={{ background: c.swatch }} aria-hidden="true" />
+                  <span className="swatch-text"><b>{c.desc}</b><em>{c.label} · {counts.color[c.key] || 0}</em></span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="group">
             <h2>특별 필터</h2>
             <div className="chips">
-              <Chip on={newOnly} disabled={!hasLicense} title={hasLicense ? '' : '공공데이터 연결 필요'} onClick={() => { setNewOnly(!newOnly); setOldOnly(false); }}>
-                신상 (개업 1년 이내)
+              <Chip icon="🌦️" on={weatherOn} onClick={() => setWeatherOn(!weatherOn)}>날씨 반영</Chip>
+              <Chip icon="⏱️" on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
+              <Chip icon="✨" on={newOnly} disabled={!hasLicense} title={hasLicense ? '개업 1년 이내' : '공공데이터 연결 필요'} onClick={() => { setNewOnly(!newOnly); setOldOnly(false); }}>
+                신상
               </Chip>
-              <Chip on={oldOnly} disabled={!hasLicense} title={hasLicense ? '' : '공공데이터 연결 필요'} onClick={() => { setOldOnly(!oldOnly); setNewOnly(false); }}>
-                노포 (10년 이상)
+              <Chip icon="🏮" on={oldOnly} disabled={!hasLicense} title={hasLicense ? '10년 이상 영업' : '공공데이터 연결 필요'} onClick={() => { setOldOnly(!oldOnly); setNewOnly(false); }}>
+                노포
               </Chip>
-              <Chip on={hideClosed} disabled={!hasLicense} onClick={() => setHideClosed(!hideClosed)}>폐업 제외</Chip>
-              <Chip on={weatherOn} onClick={() => setWeatherOn(!weatherOn)}>날씨 반영</Chip>
-              <Chip on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
+              <Chip icon="🚫" on={hideClosed} disabled={!hasLicense} title={hasLicense ? '' : '공공데이터 연결 필요'} onClick={() => setHideClosed(!hideClosed)}>폐업 제외</Chip>
             </div>
             {weatherNote && <p className="hint">{weatherNote}</p>}
             {gongang.on && (
@@ -305,7 +346,7 @@ export default function App({ defaultCenter, centerName }) {
           </div>
 
           <button className="roulette" onClick={roulette} disabled={!list.length}>
-            오늘 뭐 먹지? 랜덤 뽑기
+            🎲 오늘 뭐 먹지? 랜덤 뽑기
           </button>
           {picked && list.some((p) => p.id === picked.id) && (
             <p className="picked">
@@ -338,6 +379,7 @@ export default function App({ defaultCenter, centerName }) {
                 <li key={p.id} id={`card-${p.id}`} className={`card${p.id === selectedId ? ' card--on' : ''}`}>
                   <button className="card-main" onClick={() => { setSelectedId(p.id); setOpenId(open ? null : p.id); }} aria-expanded={open}>
                     <span className="rank">{i + 1}</span>
+                    <span className="food-icon" aria-hidden="true" title={p.group}>{GROUP_ICON[p.group]}</span>
                     <span className="card-body">
                       <span className="name">
                         {p.name}
@@ -346,7 +388,10 @@ export default function App({ defaultCenter, centerName }) {
                         {p.license?.closed && <span className="tag tag--closed">폐업</span>}
                       </span>
                       <span className="meta">
-                        {mainCategory(p.category)} · {p.distance}m · 도보 {p.walk}분
+                        {p.colors.map((c) => (
+                          <span key={c} className="cdot" style={{ background: COLOR_BY_KEY[c].swatch }} title={COLOR_BY_KEY[c].desc} />
+                        ))}
+                        {p.group} · {subCategory(p.category)} · {p.distance}m · 도보 {p.walk}분
                         {hasBlog && ` · 후기 ${p.blogCount ?? '?'}개`}
                       </span>
                       <span className="bar" aria-hidden="true"><span style={{ width: `${Math.min(100, p.score * 100)}%` }} /></span>
