@@ -244,3 +244,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 @media (min-width: 900px) {
   .map--radar svg { padding: 70px 40px 40px calc(var(--panel-w) + 40px); }
 }
+.pin-mini {
+  display: block; width: 11px; height: 11px; padding: 0; border-radius: 50%;
+  border: 2px solid #fff; background: var(--blue); opacity: .55; box-shadow: 0 1px 3px rgba(20,30,60,.3);
+}
+.pin-mini:hover { opacity: 1; transform: scale(1.3); }
