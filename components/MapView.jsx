@@ -92,12 +92,21 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
       })
     );
 
+    // 순위 상위 30곳만 아이콘 핀, 나머지는 작은 점으로 (핀이 너무 많으면 지도가 덮여서)
+    const ICON_PINS = 30;
     places.forEach((p, i) => {
       const on = p.id === selectedId;
       const el = document.createElement('button');
-      el.className = `pin${on ? ' pin--on' : ''}`;
       el.title = p.name;
-      el.innerHTML = '';
+      el.onclick = () => onSelect(p.id);
+      if (i >= ICON_PINS && !on) {
+        el.className = 'pin-mini';
+        layers.current.push(
+          new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lng), content: el, yAnchor: 0.5, xAnchor: 0.5, zIndex: 0 })
+        );
+        return;
+      }
+      el.className = `pin${on ? ' pin--on' : ''}`;
       const icon = document.createElement('span');
       icon.className = 'pin-icon';
       icon.textContent = GROUP_ICON[p.group] || '🍽️';
@@ -108,7 +117,6 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
         label.textContent = p.name;
         el.appendChild(label);
       }
-      el.onclick = () => onSelect(p.id);
       layers.current.push(
         new kakao.maps.CustomOverlay({
           map: map.current,
