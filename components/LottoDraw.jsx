@@ -24,11 +24,11 @@ const BODY = { x: 62, y: 236, w: 216, h: 124 };
 const OUT = { x: CX + 38, y: 300 }; // 배출구 가운데
 const TRAY_Y = 412;
 const SLOTS = [CX - 82, CX, CX + 82];
-const MIX_MS = 1900; // 처음 섞는 시간
-const GAP_MS = 380; // 공과 공 사이 쉬는 시간
-const EXIT_MS = 380;
-const CHUTE_MS = 300;
-const POP_MS = 620;
+const MIX_MS = 650; // 처음 섞는 시간
+const GAP_MS = 330; // 다음 공이 나오기 시작하는 간격 (앞 공이 굴러가는 동안 겹쳐서 나옴)
+const EXIT_MS = 170;
+const CHUTE_MS = 120;
+const POP_MS = 360;
 const N_PICK = 3;
 
 function shuffle(arr) {
@@ -290,7 +290,7 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
         const b = pickBalls[next];
         Object.assign(b, { state: 'exit', t0: now, dur: EXIT_MS, from: { x: b.x, y: b.y } });
         next += 1;
-        nextAt = now + EXIT_MS + CHUTE_MS + POP_MS + GAP_MS;
+        nextAt = now + GAP_MS;
       }
       const blow = mixing ? Math.min(1, t / 300) * (1.3 + 0.35 * Math.sin(t / 130)) : 0.25;
       physics(blow);
@@ -316,7 +316,7 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
 
       if (!finished && pickBalls.every((b) => b.state === 'slot')) {
         finished = true;
-        setTimeout(() => setPhase('reveal'), 520);
+        setTimeout(() => setPhase('reveal'), 180);
       }
       if (!finished || now - Math.max(...pickBalls.map((b) => b.landAt || 0)) < 300) raf = requestAnimationFrame(frame);
     }
@@ -337,13 +337,12 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
     <div className="lotto" role="dialog" aria-modal="true" aria-label="오늘 뭐 먹지? 랜덤 뽑기">
       <button className="lotto-close" onClick={onClose} aria-label="닫기">✕</button>
       <p className="lotto-title">{reveal ? '오늘의 후보 3!' : '두구두구…'}</p>
-      {!reveal && <p className="lotto-sub">가까운 집이 조금 더 잘 나와요</p>}
 
       <canvas ref={canvas} className="lotto-canvas" style={{ width: W, height: H, display: reveal ? 'none' : 'block' }} />
 
       {reveal && (
         <div className="lotto-reveal">
-          <p className="lotto-sub">하나 골라봐요! 지도에서 비교해 봐도 좋아요</p>
+          <p className="lotto-sub">하나 골라봐요!</p>
           <ul className="lotto-cards">
             {picks.map((p, i) => (
               <li key={p.id} style={{ '--ball': GROUP_PASTEL[p.group] || '#ddd', '--d': `${i * 90}ms` }}>
@@ -351,7 +350,11 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
                   <span className="lotto-num">{i + 1}</span>
                   <span className="lotto-ball" aria-hidden="true">{GROUP_ICON[p.group]}</span>
                   <b>{p.name}</b>
-                  <span className="lotto-meta">🚶 {p.walk}분 · {p.group}</span>
+                  <span className="lotto-stats">
+                    <span className="stat stat--walk">🚶 {p.walk}분</span>
+                    {p.blogCount != null && <span className="stat stat--blog">💬 후기 {p.blogCount >= 1000 ? `${(p.blogCount / 1000).toFixed(1)}천` : p.blogCount}</span>}
+                  </span>
+                  <span className="lotto-meta">{p.group} · {p.distance}m</span>
                 </button>
               </li>
             ))}

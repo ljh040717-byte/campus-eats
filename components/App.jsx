@@ -12,6 +12,20 @@ const SORTS = [
   ['blog', '후기 많은 순'],
 ];
 
+// 후기 수 보기 좋게 (1529 → 1.5천)
+const fmtCount = (n) => (n >= 10000 ? `${(n / 10000).toFixed(1)}만` : n >= 1000 ? `${(n / 1000).toFixed(1)}천` : `${n}`);
+
+// 걸리는 시간·후기 수를 눈에 띄는 알약으로
+function Stats({ p, showBlog }) {
+  return (
+    <span className="stats">
+      <span className="stat stat--walk">🚶 {p.walk}분</span>
+      {showBlog && p.blogCount != null && <span className="stat stat--blog">💬 후기 {fmtCount(p.blogCount)}</span>}
+      <span className="stat stat--dist">{p.distance}m</span>
+    </span>
+  );
+}
+
 const SOURCE_LABEL = {
   places: { kakao: '카카오 로컬', osm: 'OpenStreetMap', mock: '예시 데이터' },
   blog: { naver: '네이버 블로그', mock: '예시 데이터', off: '미연결' },
@@ -372,8 +386,10 @@ export default function App({ defaultCenter, centerName }) {
                         onClick={() => { setSelectedId(p.id); setOpenId(p.id); }}>
                         <i>{i + 1}</i>
                         <span className="ic" aria-hidden="true">{GROUP_ICON[p.group]}</span>
-                        <b>{p.name}</b>
-                        <em>🚶 {p.walk}분</em>
+                        <span className="pick-text">
+                          <b>{p.name}</b>
+                          <Stats p={p} showBlog={hasBlog} />
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -392,10 +408,12 @@ export default function App({ defaultCenter, centerName }) {
               return (
                 <li key={p.id} id={`card-${p.id}`} className={`card${p.id === selectedId ? ' card--on' : ''}`}>
                   <button className="card-main" onClick={() => { setSelectedId(p.id); setOpenId(open ? null : p.id); }} aria-expanded={open}>
-                    <span className="food-icon" aria-hidden="true" title={p.group}>{GROUP_ICON[p.group]}</span>
+                    <span className="food-icon" aria-hidden="true" title={p.group} style={{ '--pick': GROUP_PASTEL[p.group] }}>
+                      {GROUP_ICON[p.group]}
+                      <span className="rank">{i + 1}</span>
+                    </span>
                     <span className="card-body">
                       <span className="name">
-                        <span className="rank">{i + 1}</span>
                         {p.name}
                         {isNew(p) && <span className="tag tag--new">신상</span>}
                         {isOld(p) && <span className="tag tag--old">노포</span>}
@@ -406,22 +424,15 @@ export default function App({ defaultCenter, centerName }) {
                         ))}
                         {p.group} · {subCategory(p.category)}
                       </span>
-                      <span className="meta meta--sub">
-                        🚶 {p.walk}분 · {p.distance}m{hasBlog && ` · 후기 ${p.blogCount ?? '?'}`}
-                      </span>
+                      <Stats p={p} showBlog={hasBlog} />
                     </span>
-                    <span className="score" aria-label={`추천 점수 ${Math.round(p.score * 100)}`}>{Math.round(p.score * 100)}</span>
                   </button>
                   {open && (
                     <div className="detail">
-                      <p>{p.address}</p>
-                      {p.phone && <p>{p.phone}</p>}
-                      {p.license?.permitDate && <p>인허가일 {p.license.permitDate} · {p.license.status}</p>}
-                      {gongang.on && <p>왕복 포함 총 {p.tripMinutes}분</p>}
-                      <p className="formula">
-                        추천 점수 {p.score.toFixed(2)} = {p.parts.wd}×거리 {p.parts.D.toFixed(2)} + {p.parts.wb.toFixed(1)}×후기 {p.parts.B.toFixed(2)}
-                        {p.parts.W > 0 && ` + 날씨 ${p.parts.W}`}
-                      </p>
+                      <p>📍 {p.address}</p>
+                      {p.phone && <p>📞 {p.phone}</p>}
+                      {p.license?.permitDate && <p>📅 {p.license.permitDate.slice(0, 4)}년부터 영업 중</p>}
+                      {gongang.on && <p>⏱️ 왕복하고 먹고 오면 총 {p.tripMinutes}분</p>}
                       {p.url && !p.id.startsWith('osm-') && (
                         <a href={p.url} target="_blank" rel="noreferrer">카카오맵에서 메뉴·리뷰 보기 →</a>
                       )}
