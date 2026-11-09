@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapView from './MapView';
-import LottoDraw from './LottoDraw';
+import LottoDraw, { GROUP_PASTEL } from './LottoDraw';
 import { filterAndScore, isNew, isOld, subCategory, foodGroup, foodColors, FOOD_GROUPS, FOOD_COLORS } from '@/lib/score';
 
 const RADII = [300, 500, 1000, 1500];
@@ -71,7 +71,7 @@ export default function App({ defaultCenter, centerName }) {
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [openId, setOpenId] = useState(null);
-  const [picked, setPicked] = useState(null);
+  const [picks, setPicks] = useState([]); // 랜덤 뽑기 후보 3곳
   const [drawing, setDrawing] = useState(false);
   const [blogProgress, setBlogProgress] = useState(null);
 
@@ -199,18 +199,22 @@ export default function App({ defaultCenter, centerName }) {
     setDrawing(true);
   }
 
-  // 추첨이 끝나면: 화면을 닫고 지도에서 당첨 가게 위치를 보여줌
-  const finishDraw = useCallback((p) => {
+  // 추첨이 끝나면: 화면을 닫고 지도에 후보 3곳을 모두 표시
+  //  chosenId가 있으면 그 집을 강조, 없으면(3곳 다 보기) 강조 없이 3곳만
+  const finishDraw = useCallback((ps, chosenId) => {
     setDrawing(false);
-    setPicked(p);
-    setSelectedId(p.id);
-    setOpenId(p.id);
+    setPicks(ps);
+    setSelectedId(chosenId);
+    setOpenId(chosenId);
     if (window.innerWidth < 900) {
       window.scrollTo({ top: 0, behavior: 'smooth' }); // 휴대폰: 위쪽 지도로 올라감
     } else {
-      setTimeout(() => document.getElementById(`card-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+      setTimeout(() => document.querySelector('.picks')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
     }
   }, []);
+
+  const pickIds = picks.filter((p) => list.some((x) => x.id === p.id)).map((p) => p.id);
+  const pickList = pickIds.map((id) => list.find((x) => x.id === id));
 
   function useMyLocation() {
     if (!navigator.geolocation) return;
@@ -247,7 +251,7 @@ export default function App({ defaultCenter, centerName }) {
       {drawing && <LottoDraw candidates={list} onDone={finishDraw} onClose={() => setDrawing(false)} />}
       {/* ── 전체 화면 지도 ── */}
       <div className="map-layer">
-        <MapView center={center} radius={radius} places={list} selectedId={selectedId} onSelect={select} />
+        <MapView center={center} radius={radius} places={list} selectedId={selectedId} onSelect={select} pickIds={pickIds} />
       </div>
 
       {/* ── 지도 위 음식 종류 알약 버튼 ── */}
@@ -355,8 +359,26 @@ export default function App({ defaultCenter, centerName }) {
             <button className="roulette" onClick={roulette} disabled={!list.length}>
               🎲 오늘 뭐 먹지? 랜덤 뽑기
             </button>
-            {picked && list.some((p) => p.id === picked.id) && (
-              <p className="picked">오늘은 <b>{picked.name}</b> 어때요? 도보 {picked.walk}분</p>
+            {pickList.length > 0 && (
+              <div className="picks">
+                <p className="picks-head">
+                  🎲 오늘의 후보 {pickList.length}곳
+                  <button onClick={() => setPicks([])}>지우기</button>
+                </p>
+                <ol>
+                  {pickList.map((p, i) => (
+                    <li key={p.id}>
+                      <button className={`pick-chip${p.id === selectedId ? ' on' : ''}`} style={{ '--pick': GROUP_PASTEL[p.group] }}
+                        onClick={() => { setSelectedId(p.id); setOpenId(p.id); }}>
+                        <i>{i + 1}</i>
+                        <span className="ic" aria-hidden="true">{GROUP_ICON[p.group]}</span>
+                        <b>{p.name}</b>
+                        <em>🚶 {p.walk}분</em>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             )}
           </section>
 

@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FOOD_GROUPS } from '@/lib/score';
+import { GROUP_PASTEL } from './LottoDraw';
 
 const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
 
@@ -30,11 +31,13 @@ function loadKakaoSdk() {
   });
 }
 
-function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
+function KakaoMap({ center, radius, places, selectedId, onSelect, onFail, pickIds = [] }) {
   const box = useRef(null);
   const map = useRef(null);
   const layers = useRef([]);
   const [ready, setReady] = useState(false);
+  const skipPan = useRef(0);
+  const pickKey = pickIds.join(',');
 
   useEffect(() => {
     let alive = true;
@@ -96,9 +99,22 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
     const ICON_PINS = 30;
     places.forEach((p, i) => {
       const on = p.id === selectedId;
+      const pickNo = pickIds.indexOf(p.id); // 랜덤 뽑기 후보면 0~2
       const el = document.createElement('button');
       el.title = p.name;
       el.onclick = () => onSelect(p.id);
+      if (pickNo >= 0) {
+        // 후보 3곳: 크고 귀여운 핀 + 번호 + 이름표
+        el.className = `pin pin--pick${on ? ' pin--on' : ''}`;
+        el.style.setProperty('--pick', GROUP_PASTEL[p.group] || '#fff');
+        el.innerHTML = `<span class="pin-icon"></span><span class="pin-num">${pickNo + 1}</span><span class="pin-label"></span>`;
+        el.querySelector('.pin-icon').textContent = GROUP_ICON[p.group] || '🍽️';
+        el.querySelector('.pin-label').textContent = p.name;
+        layers.current.push(
+          new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lng), content: el, yAnchor: 0.5, xAnchor: 0.2, zIndex: on ? 30 : 20 })
+        );
+        return;
+      }
       if (i >= ICON_PINS && !on) {
         el.className = 'pin-mini';
         layers.current.push(
@@ -111,7 +127,7 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
       icon.className = 'pin-icon';
       icon.textContent = GROUP_ICON[p.group] || '🍽️';
       el.appendChild(icon);
-      if (on || i < 3) {
+      if (on || (i < 3 && !pickIds.length)) {
         const label = document.createElement('span');
         label.className = 'pin-label';
         label.textContent = p.name;
@@ -128,11 +144,28 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
         })
       );
     });
-  }, [ready, center, radius, places, selectedId, onSelect]);
+  }, [ready, center, radius, places, selectedId, onSelect, pickKey]);
+
+  // 새로 뽑힌 후보 3곳이 한눈에 보이도록 지도 범위를 맞춤
+  useEffect(() => {
+    const kakao = window.kakao;
+    if (!ready || !kakao || !pickIds.length) return;
+    const bounds = new kakao.maps.LatLngBounds();
+    pickIds.forEach((id) => {
+      const p = places.find((x) => x.id === id);
+      if (p) bounds.extend(new kakao.maps.LatLng(p.lat, p.lng));
+    });
+    bounds.extend(new kakao.maps.LatLng(center.lat, center.lng)); // 학교(출발점)도 같이 보이게
+    const left = panelOffset() ? 460 : 40;
+    map.current.setBounds(bounds, 90, 80, 110, left);
+    skipPan.current = Date.now(); // 같은 순간의 '선택 가게로 이동'은 건너뜀
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, pickKey]);
 
   // 가게를 고르면 그 위치로 부드럽게 이동
   useEffect(() => {
     const kakao = window.kakao;
+    if (Date.now() - skipPan.current < 150) return;
     if (!ready || !kakao || !selectedId) return;
     const p = places.find((x) => x.id === selectedId);
     if (!p) return;
@@ -148,7 +181,7 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
 }
 
 // 키가 없을 때: 학교를 중심으로 한 반경 지도
-function RadarMap({ center, radius, places, selectedId, onSelect }) {
+function RadarMap({ center, radius, places, selectedId, onSelect, pickIds = [] }) {
   const mLat = 111000;
   const mLng = 111000 * Math.cos((center.lat * Math.PI) / 180);
   const R = radius * 1.08;
@@ -169,7 +202,7 @@ function RadarMap({ center, radius, places, selectedId, onSelect }) {
           const i = places.indexOf(p);
           const x = (p.lng - center.lng) * mLng;
           const y = -(p.lat - center.lat) * mLat;
-          const on = p.id === selectedId;
+          const on = p.id === selectedId || pickIds.includes(p.id);
           const r = R * (on ? 0.05 : 0.035);
           return (
             <g key={p.id} onClick={() => onSelect(p.id)} className={`dot${on ? ' dot--on' : ''}`}>

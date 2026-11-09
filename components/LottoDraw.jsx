@@ -1,52 +1,63 @@
 'use client';
 
-// 🎲 랜덤 뽑기 애니메이션 — 로또 추첨기
-//  ① 유리 통 안에서 공(가게)들이 바람에 섞이며 튀어다님
-//  ② 당첨 공 하나가 아래 출구로 빠져나와 관을 타고 굴러 떨어짐
-//  ③ 공이 커지며 가게 이름 공개 → 잠시 후 자동으로 지도로 돌아가 위치를 보여줌
+// 🎲 랜덤 뽑기 — 귀여운 가챠 머신
+//  ① 동그란 통 안에서 공(가게)들이 통통 섞임
+//  ② 공 3개가 차례로 통 아래 → 배출구 → 받침 칸으로 콩콩 굴러 나옴
+//  ③ 후보 3곳 카드 공개 → 하나를 고르거나, 3곳 다 지도에서 보기
+//  뽑는 확률은 lib/score.js 의 drawWeight (가깝고 후기 많은 집이 최대 2배)
 
 import { useEffect, useRef, useState } from 'react';
-import { FOOD_GROUPS } from '@/lib/score';
+import { FOOD_GROUPS, weightedPicks } from '@/lib/score';
 
 const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
-const GROUP_COLOR = { 한식: '#ff6b5a', 중식: '#ffb020', 일식: '#4f8cff', 양식: '#34c58a', 기타: '#a77bff' };
+export const GROUP_PASTEL = { 한식: '#FF9B85', 중식: '#FFC94D', 일식: '#7FB2FF', 양식: '#6FD3A4', 기타: '#C3A3FF' };
 
-const W = 320; // 캔버스 너비
-const H = 420; // 캔버스 높이 (통 + 관 + 받침)
+const INK = '#2B2A4C';
+const W = 340;
+const H = 460;
 const CX = W / 2;
-const CY = 165;
-const R = 135; // 통 반지름
-const BR = 19; // 공 반지름
-const MIX_MS = 2600; // 섞는 시간
-const EXIT_MS = 600; // 당첨 공이 출구로 가는 시간
-const AUTO_BACK_MS = 2600; // 이름 공개 후 지도로 돌아가기까지
+const CY = 150; // 통 중심
+const R = 112; // 통 반지름
+const BR = 21; // 공 반지름
+const BALLS = 16;
+const BODY = { x: 62, y: 236, w: 216, h: 124 };
+const OUT = { x: CX + 38, y: 300 }; // 배출구 가운데
+const TRAY_Y = 412;
+const SLOTS = [CX - 82, CX, CX + 82];
+const MIX_MS = 1900; // 처음 섞는 시간
+const GAP_MS = 380; // 공과 공 사이 쉬는 시간
+const EXIT_MS = 380;
+const CHUTE_MS = 300;
+const POP_MS = 620;
+const N_PICK = 3;
 
-function sample(arr, n) {
+function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
-  return a.slice(0, n);
+  return a;
 }
+
+const ease = (k) => k * k * (3 - 2 * k);
 
 export default function LottoDraw({ candidates, onDone, onClose }) {
   const canvas = useRef(null);
-  const [winner, setWinner] = useState(null);
+  const [picks, setPicks] = useState([]);
   const [phase, setPhase] = useState('mix'); // mix → reveal
   const [round, setRound] = useState(0);
 
-  // 한 판 시작: 당첨 가게를 정하고, 같이 섞일 공들을 고름
   useEffect(() => {
     if (!candidates.length) return;
-    const win = candidates[Math.floor(Math.random() * candidates.length)];
-    const others = sample(candidates.filter((p) => p.id !== win.id), 21);
-    const pool = sample([win, ...others], others.length + 1);
-    setWinner(win);
+    const chosen = weightedPicks(candidates, N_PICK);
+    const ids = new Set(chosen.map((p) => p.id));
+    const others = shuffle(candidates.filter((p) => !ids.has(p.id))).slice(0, BALLS - chosen.length);
+    const pool = shuffle([...chosen, ...others]);
+    setPicks(chosen);
     setPhase('mix');
 
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       setPhase('reveal');
       return;
     }
@@ -60,123 +71,165 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
 
     const balls = pool.map((p, i) => {
       const a = (i / pool.length) * Math.PI * 2;
-      const d = 30 + Math.random() * 60;
+      const d = 20 + Math.random() * 55;
       return {
         p,
-        win: p.id === win.id,
+        order: chosen.findIndex((c) => c.id === p.id), // -1이면 꽝 공
+        state: 'dome', // dome → exit → chute → pop → slot
         x: CX + Math.cos(a) * d,
-        y: CY + 40 + Math.sin(a) * d * 0.6,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6,
-        rot: Math.random() * Math.PI,
+        y: CY + 30 + Math.sin(a) * d * 0.6,
+        vx: (Math.random() - 0.5) * 5,
+        vy: (Math.random() - 0.5) * 5,
+        rot: Math.random() * 6,
       };
     });
-    const wb = balls.find((b) => b.win);
+    const pickBalls = chosen.map((c) => balls.find((b) => b.p.id === c.id));
 
-    let start = performance.now();
+    const start = performance.now();
     let raf;
-    let exitFrom = null;
-    let stage = 'mix'; // mix → exit → fall → done
+    let next = 0; // 다음에 나올 공 번호
+    let nextAt = start + MIX_MS;
+    let finished = false;
 
-    function drawBall(b, scale = 1) {
-      const r = BR * scale;
-      const col = GROUP_COLOR[b.p.group] || '#999';
-      const g = ctx.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4, r * 0.15, b.x, b.y, r);
-      g.addColorStop(0, '#ffffff');
-      g.addColorStop(0.25, col);
-      g.addColorStop(1, shade(col, -28));
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
-      // 가운데 흰 원 + 음식 아이콘 (로또 공 숫자 자리)
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, r * 0.56, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,.92)';
-      ctx.fill();
+    function drawBall(b, s = 1) {
+      const r = BR * s;
       ctx.save();
       ctx.translate(b.x, b.y);
-      ctx.rotate(Math.sin(b.rot) * 0.5);
-      ctx.font = `${Math.round(r * 0.75)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = GROUP_PASTEL[b.p.group] || '#ddd';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      // 반짝 점 하나
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.42, -r * 0.45, r * 0.18, r * 0.11, -0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.fill();
+      ctx.rotate(Math.sin(b.rot) * 0.35);
+      ctx.font = `${Math.round(r * 1.0)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(GROUP_ICON[b.p.group] || '🍽️', 0, 1);
+      ctx.fillText(GROUP_ICON[b.p.group] || '🍽️', 0, 2);
       ctx.restore();
     }
 
-    function drawMachine() {
-      // 받침대
-      ctx.fillStyle = '#1a3fb4';
-      roundRect(ctx, CX - 70, H - 46, 140, 30, 10);
-      ctx.fill();
-      // 관 (통 아래 → 받침)
-      ctx.fillStyle = 'rgba(255,255,255,.28)';
-      ctx.strokeStyle = 'rgba(255,255,255,.7)';
-      ctx.lineWidth = 2;
-      roundRect(ctx, CX - BR - 5, CY + R - 6, (BR + 5) * 2, H - 46 - (CY + R - 6), 8);
-      ctx.fill();
-      ctx.stroke();
-      // 통 (유리)
-      const glass = ctx.createRadialGradient(CX - 50, CY - 60, 10, CX, CY, R);
-      glass.addColorStop(0, 'rgba(255,255,255,.55)');
-      glass.addColorStop(1, 'rgba(255,255,255,.12)');
-      ctx.beginPath();
-      ctx.arc(CX, CY, R, 0, Math.PI * 2);
-      ctx.fillStyle = glass;
-      ctx.fill();
-    }
-
-    function drawGlassFront() {
-      ctx.beginPath();
-      ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    function drawBody(t, mixing) {
+      // 받침 칸
       ctx.lineWidth = 5;
-      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.strokeStyle = INK;
+      ctx.fillStyle = '#FFE2B8';
+      roundRect(ctx, 34, TRAY_Y - 34, W - 68, 66, 22);
+      ctx.fill();
       ctx.stroke();
-      // 반사광
+      ctx.fillStyle = 'rgba(43,42,76,.10)';
+      for (const x of SLOTS) {
+        ctx.beginPath();
+        ctx.ellipse(x, TRAY_Y + 16, BR + 2, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // 몸통
+      ctx.fillStyle = '#FF7A6B';
+      roundRect(ctx, BODY.x, BODY.y, BODY.w, BODY.h, 24);
+      ctx.fill();
+      ctx.stroke();
+      // 손잡이 (섞는 동안 빙글빙글)
+      const kx = CX - 48;
+      const ky = 298;
       ctx.beginPath();
-      ctx.arc(CX, CY, R - 14, Math.PI * 1.1, Math.PI * 1.45);
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(255,255,255,.6)';
+      ctx.arc(kx, ky, 22, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
       ctx.stroke();
+      ctx.save();
+      ctx.translate(kx, ky);
+      ctx.rotate(mixing ? t / 160 : 0);
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(-12, 0);
+      ctx.lineTo(12, 0);
+      ctx.stroke();
+      ctx.restore();
+      // 배출구
+      ctx.fillStyle = INK;
+      roundRect(ctx, OUT.x - 30, OUT.y - 28, 60, 56, 16);
+      ctx.fill();
+      ctx.fillStyle = '#FFC94D';
+      roundRect(ctx, OUT.x - 30, OUT.y - 28, 60, 14, 7);
+      ctx.fill();
+      ctx.lineWidth = 5;
       ctx.lineCap = 'butt';
     }
 
-    function physics(t, blow) {
-      for (const b of balls) {
-        if (b.win && stage !== 'mix') continue;
-        b.vy += 0.32; // 중력
-        // 아래쪽에서 바람이 불어 공을 띄움
-        if (b.y > CY + 20) {
-          b.vy -= blow * (0.6 + Math.random() * 0.9);
-          b.vx += (Math.random() - 0.5) * blow * 1.6;
+    function drawDome(shake) {
+      ctx.save();
+      ctx.translate(shake, 0);
+      // 뚜껑
+      ctx.fillStyle = '#FF7A6B';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = INK;
+      roundRect(ctx, CX - 26, CY - R - 16, 52, 26, 10);
+      ctx.fill();
+      ctx.stroke();
+      // 통 (속)
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, 0, Math.PI * 2);
+      ctx.fillStyle = '#EAF4FF';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawDomeFront(shake) {
+      ctx.save();
+      ctx.translate(shake, 0);
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, 0, Math.PI * 2);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      // 귀여운 반짝이
+      ctx.beginPath();
+      ctx.arc(CX, CY, R - 16, Math.PI * 1.15, Math.PI * 1.38);
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,.95)';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function physics(blow) {
+      const inDome = balls.filter((b) => b.state === 'dome');
+      for (const b of inDome) {
+        b.vy += 0.3;
+        if (b.y > CY + 10) {
+          b.vy -= blow * (0.55 + Math.random() * 0.9);
+          b.vx += (Math.random() - 0.5) * blow * 1.5;
         }
-        b.vx *= 0.995;
-        b.vy *= 0.995;
+        b.vx *= 0.993;
+        b.vy *= 0.993;
         b.x += b.vx;
         b.y += b.vy;
         b.rot += b.vx * 0.05;
-        // 통 벽에 튕김
         const dx = b.x - CX;
         const dy = b.y - CY;
         const dist = Math.hypot(dx, dy);
-        const max = R - BR - 3;
+        const max = R - BR - 4;
         if (dist > max) {
           const nx = dx / dist;
           const ny = dy / dist;
           b.x = CX + nx * max;
           b.y = CY + ny * max;
           const dot = b.vx * nx + b.vy * ny;
-          b.vx = (b.vx - 2 * dot * nx) * 0.86;
-          b.vy = (b.vy - 2 * dot * ny) * 0.86;
+          b.vx = (b.vx - 2 * dot * nx) * 0.85;
+          b.vy = (b.vy - 2 * dot * ny) * 0.85;
         }
       }
-      // 공끼리 부딪힘
-      for (let i = 0; i < balls.length; i++) {
-        for (let j = i + 1; j < balls.length; j++) {
-          const a = balls[i];
-          const c = balls[j];
-          if ((a.win || c.win) && stage !== 'mix') continue;
+      for (let i = 0; i < inDome.length; i++) {
+        for (let j = i + 1; j < inDome.length; j++) {
+          const a = inDome[i];
+          const c = inDome[j];
           const dx = c.x - a.x;
           const dy = c.y - a.y;
           const d = Math.hypot(dx, dy);
@@ -200,89 +253,115 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
       }
     }
 
+    function moveBall(b, now) {
+      const k = Math.min(1, (now - b.t0) / b.dur);
+      const e = ease(k);
+      if (b.state === 'exit') {
+        b.x = b.from.x + (CX - b.from.x) * e;
+        b.y = b.from.y + (CY + R - BR - 6 - b.from.y) * e;
+        b.rot += 0.25;
+        if (k >= 1) Object.assign(b, { state: 'chute', t0: now, dur: CHUTE_MS, from: { x: b.x, y: b.y } });
+      } else if (b.state === 'chute') {
+        b.x = b.from.x + (OUT.x - b.from.x) * e;
+        b.y = b.from.y + (OUT.y - b.from.y) * e;
+        if (k >= 1) Object.assign(b, { state: 'pop', t0: now, dur: POP_MS, from: { x: OUT.x, y: OUT.y } });
+      } else if (b.state === 'pop') {
+        // 배출구에서 튀어나와 자기 칸으로 콩콩
+        const tx = SLOTS[b.order];
+        const ty = TRAY_Y;
+        b.x = b.from.x + (tx - b.from.x) * k;
+        const arc = Math.sin(Math.min(1, k * 1.35) * Math.PI) * 46; // 큰 점프
+        const bounce = k > 0.74 ? Math.abs(Math.sin(((k - 0.74) / 0.26) * Math.PI)) * 10 : 0; // 작은 통
+        b.y = b.from.y + (ty - b.from.y) * Math.min(1, k * 1.35) - arc - bounce;
+        b.rot += 0.3;
+        if (k >= 1) {
+          b.x = tx;
+          b.y = ty;
+          b.state = 'slot';
+          b.landAt = now;
+        }
+      }
+    }
+
     function frame(now) {
       const t = now - start;
-      if (stage === 'mix' && t > MIX_MS) {
-        stage = 'exit';
-        exitFrom = { x: wb.x, y: wb.y, t: now };
+      const mixing = next < N_PICK;
+      if (mixing && now >= nextAt && pickBalls[next].state === 'dome') {
+        const b = pickBalls[next];
+        Object.assign(b, { state: 'exit', t0: now, dur: EXIT_MS, from: { x: b.x, y: b.y } });
+        next += 1;
+        nextAt = now + EXIT_MS + CHUTE_MS + POP_MS + GAP_MS;
       }
-      const blow = stage === 'mix' ? (t < 300 ? t / 300 : 1) * (1.35 + 0.35 * Math.sin(t / 140)) : 0.35;
-      physics(t, blow);
+      const blow = mixing ? Math.min(1, t / 300) * (1.3 + 0.35 * Math.sin(t / 130)) : 0.25;
+      physics(blow);
+      for (const b of pickBalls) if (['exit', 'chute', 'pop'].includes(b.state)) moveBall(b, now);
 
-      if (stage === 'exit') {
-        const k = Math.min(1, (now - exitFrom.t) / EXIT_MS);
-        const e = k * k * (3 - 2 * k);
-        wb.x = exitFrom.x + (CX - exitFrom.x) * e;
-        wb.y = exitFrom.y + (CY + R - BR - 4 - exitFrom.y) * e;
-        wb.rot += 0.3;
-        if (k >= 1) {
-          stage = 'fall';
-          wb.vy = 2;
-        }
-      } else if (stage === 'fall') {
-        wb.vy += 0.6;
-        wb.y += wb.vy;
-        wb.rot += 0.35;
-        const floor = H - 46 - BR - 2;
-        if (wb.y >= floor) {
-          wb.y = floor;
-          stage = 'done';
-          setTimeout(() => setPhase('reveal'), 350);
-        }
-      }
-
+      const shake = mixing ? Math.sin(t / 45) * 2.2 : 0;
       ctx.clearRect(0, 0, W, H);
-      drawMachine();
-      for (const b of balls) if (!(b.win && stage !== 'mix')) drawBall(b);
-      drawGlassFront();
-      if (stage !== 'mix') drawBall(wb, stage === 'done' ? 1.15 : 1);
+      for (const b of pickBalls) if (b.state === 'chute') drawBall(b); // 몸통 뒤로 지나감
+      drawBody(t, mixing);
+      drawDome(shake);
+      ctx.save();
+      ctx.translate(shake, 0);
+      for (const b of balls) if (b.state === 'dome' || b.state === 'exit') drawBall(b);
+      ctx.restore();
+      drawDomeFront(shake);
+      for (const b of pickBalls) {
+        if (b.state === 'pop') drawBall(b);
+        if (b.state === 'slot') {
+          const k = Math.min(1, (now - b.landAt) / 220);
+          drawBall(b, 1 + Math.sin(k * Math.PI) * 0.18); // 착지하면 뿅
+        }
+      }
 
-      if (stage !== 'done') raf = requestAnimationFrame(frame);
+      if (!finished && pickBalls.every((b) => b.state === 'slot')) {
+        finished = true;
+        setTimeout(() => setPhase('reveal'), 520);
+      }
+      if (!finished || now - Math.max(...pickBalls.map((b) => b.landAt || 0)) < 300) raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round]);
 
-  // 이름 공개 후 자동으로 지도로 돌아감
-  useEffect(() => {
-    if (phase !== 'reveal' || !winner) return;
-    const t = setTimeout(() => onDone(winner), AUTO_BACK_MS);
-    return () => clearTimeout(t);
-  }, [phase, winner, onDone]);
-
-  // Esc로 닫기
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const col = winner ? GROUP_COLOR[winner.group] || '#999' : '#999';
+  const reveal = phase === 'reveal';
 
   return (
     <div className="lotto" role="dialog" aria-modal="true" aria-label="오늘 뭐 먹지? 랜덤 뽑기">
       <button className="lotto-close" onClick={onClose} aria-label="닫기">✕</button>
-      <p className="lotto-title">{phase === 'mix' ? '오늘 뭐 먹지? 추첨 중…' : '오늘의 맛집 당첨!'}</p>
+      <p className="lotto-title">{reveal ? '오늘의 후보 3!' : '두구두구…'}</p>
+      {!reveal && <p className="lotto-sub">가까운 집이 조금 더 잘 나와요</p>}
 
-      <div className="lotto-stage">
-        <canvas ref={canvas} className={`lotto-canvas${phase === 'reveal' ? ' dim' : ''}`} style={{ width: W, height: H }} />
+      <canvas ref={canvas} className="lotto-canvas" style={{ width: W, height: H, display: reveal ? 'none' : 'block' }} />
 
-        {phase === 'reveal' && winner && (
-          <div className="lotto-reveal">
-            <div className="lotto-ball" style={{ '--ball': col }}>
-              <span>{GROUP_ICON[winner.group]}</span>
-            </div>
-            <h2>{winner.name}</h2>
-            <p>{winner.group} · 도보 {winner.walk}분 · {winner.distance}m</p>
-            <div className="lotto-actions">
-              <button className="lotto-again" onClick={() => setRound((r) => r + 1)}>🔄 다시 뽑기</button>
-              <button className="lotto-go" onClick={() => onDone(winner)}>지도에서 보기 →</button>
-            </div>
-            <div className="lotto-timer" aria-hidden="true"><span style={{ animationDuration: `${AUTO_BACK_MS}ms` }} /></div>
+      {reveal && (
+        <div className="lotto-reveal">
+          <p className="lotto-sub">하나 골라봐요! 지도에서 비교해 봐도 좋아요</p>
+          <ul className="lotto-cards">
+            {picks.map((p, i) => (
+              <li key={p.id} style={{ '--ball': GROUP_PASTEL[p.group] || '#ddd', '--d': `${i * 90}ms` }}>
+                <button className="lotto-card" onClick={() => onDone(picks, p.id)}>
+                  <span className="lotto-num">{i + 1}</span>
+                  <span className="lotto-ball" aria-hidden="true">{GROUP_ICON[p.group]}</span>
+                  <b>{p.name}</b>
+                  <span className="lotto-meta">🚶 {p.walk}분 · {p.group}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="lotto-actions">
+            <button className="lotto-again" onClick={() => setRound((r) => r + 1)}>🔄 다시 뽑기</button>
+            <button className="lotto-go" onClick={() => onDone(picks, null)}>🗺️ 3곳 다 지도에서 보기</button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -295,10 +374,4 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
-}
-
-function shade(hex, pct) {
-  const n = parseInt(hex.slice(1), 16);
-  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (pct / 100) * 255)));
-  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
 }
