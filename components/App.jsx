@@ -326,13 +326,9 @@ export default function App({ defaultCenter, centerName }) {
             <div className="chips">
               <Chip icon="🌦️" on={weatherOn} onClick={() => setWeatherOn(!weatherOn)}>날씨 반영</Chip>
               <Chip icon="⏱️" on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
-              <Chip icon="✨" on={newOnly} disabled={!hasLicense} title={hasLicense ? '개업 1년 이내' : '공공데이터 연결 필요'} onClick={() => { setNewOnly(!newOnly); setOldOnly(false); }}>
+              <Chip icon="✨" on={newOnly} disabled={!hasLicense} title={hasLicense ? '개업 1년 이내' : '공공데이터 연결 필요'} onClick={() => setNewOnly(!newOnly)}>
                 신상
               </Chip>
-              <Chip icon="🏮" on={oldOnly} disabled={!hasLicense} title={hasLicense ? '10년 이상 영업' : '공공데이터 연결 필요'} onClick={() => { setOldOnly(!oldOnly); setNewOnly(false); }}>
-                노포
-              </Chip>
-              <Chip icon="🚫" on={hideClosed} disabled={!hasLicense} title={hasLicense ? '' : '공공데이터 연결 필요'} onClick={() => setHideClosed(!hideClosed)}>폐업 제외</Chip>
             </div>
             {weatherNote && <p className="hint">{weatherNote}</p>}
             {gongang.on && (
