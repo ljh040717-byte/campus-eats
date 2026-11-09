@@ -1,15 +1,17 @@
 :root {
-  --bg: #f6f1e7;
-  --paper: #fffdf8;
-  --ink: #1f2a26;
-  --muted: #6b726d;
-  --line: #e4dccb;
-  --green: #2f5d50;
-  --green-soft: #e3ece7;
-  --tomato: #d9532b;
-  --tomato-soft: #fbe6dc;
-  --gold: #b7862a;
-  --radius: 14px;
+  /* 따뜻한 '밥집' 톤: 크림 배경 + 토마토 주색 + 올리브 보조색 */
+  --bg: #fff6ec;
+  --paper: #ffffff;
+  --ink: #2b1d16;
+  --muted: #7a6a60;
+  --line: #f0e1d2;
+  --green: #e8552d;        /* 주색(선택 상태·강조) */
+  --green-soft: #fde8de;
+  --tomato: #e8552d;
+  --tomato-soft: #fde8de;
+  --olive: #6b8f3a;
+  --gold: #c58a1d;
+  --radius: 16px;
 }
 
 * { box-sizing: border-box; }
@@ -111,7 +113,7 @@ h1 { margin: 2px 0 0; font-size: 30px; letter-spacing: -0.03em; font-weight: 800
 .dot { cursor: pointer; }
 .dot circle { fill: var(--tomato); stroke: #fff; stroke-width: 4; }
 .dot text { fill: #fff; font-weight: 700; pointer-events: none; }
-.dot--on circle { fill: var(--green); }
+.dot--on circle { fill: var(--ink); }
 .map-note {
   position: absolute; bottom: 8px; left: 0; right: 0; margin: 0; text-align: center;
   font-size: 11px; color: var(--muted);
@@ -123,7 +125,7 @@ h1 { margin: 2px 0 0; font-size: 30px; letter-spacing: -0.03em; font-weight: 800
   background: var(--tomato); color: #fff; font-size: 11px; font-weight: 700;
   box-shadow: 0 1px 4px #0004; padding: 0;
 }
-.pin--on { background: var(--green); transform: scale(1.25); }
+.pin--on { background: var(--ink); transform: scale(1.25); }
 
 .count { margin: 14px 2px 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .err { color: var(--tomato); }
@@ -166,4 +168,58 @@ h1 { margin: 2px 0 0; font-size: 30px; letter-spacing: -0.03em; font-weight: 800
 @media (max-width: 420px) {
   h1 { font-size: 26px; }
   .detail { padding-left: 14px; }
+}
+
+/* ── 헤더 ─────────────────────────────── */
+.top {
+  background: linear-gradient(120deg, #e8552d 0%, #f28a3c 100%);
+  color: #fff; border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px;
+  box-shadow: 0 6px 18px #e8552d33;
+}
+.top .eyebrow { color: #ffe4d6; }
+.top h1 { color: #fff; }
+.top .ghost { background: #ffffff26; border-color: #ffffff66; color: #fff; }
+
+/* ── 아이콘 칩 ─────────────────────────── */
+.chip { display: inline-flex; align-items: center; gap: 5px; }
+.chip-icon { font-size: 15px; line-height: 1; }
+
+/* ── 음식 종류 타일 ────────────────────── */
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.tile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 2px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+  transition: transform .12s ease, border-color .12s ease;
+}
+.tile:not(:disabled):hover { transform: translateY(-1px); border-color: var(--tomato); }
+.tile-icon { font-size: 24px; line-height: 1.1; }
+.tile-label { font-size: 13px; font-weight: 700; }
+.tile-count { font-size: 11px; color: var(--muted); }
+.tile.on { background: var(--tomato-soft); border-color: var(--tomato); box-shadow: 0 0 0 1px var(--tomato) inset; }
+.tile.on .tile-count { color: var(--tomato); font-weight: 700; }
+
+/* ── 색깔로 고르기 ─────────────────────── */
+.swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.swatch {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+}
+.swatch-dot { flex: none; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 1px #0000001a inset; }
+.swatch-text { display: grid; line-height: 1.25; }
+.swatch-text b { font-size: 13px; }
+.swatch-text em { font-style: normal; font-size: 11px; color: var(--muted); }
+.swatch.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
+
+/* ── 카드 ──────────────────────────────── */
+.food-icon { flex: none; font-size: 22px; line-height: 26px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; }
+.cdot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px #0000001f inset; }
+.rank { color: var(--tomato); }
+.bar span { background: linear-gradient(90deg, #f28a3c, #e8552d); }
+.roulette { box-shadow: 0 4px 12px #e8552d40; }
+
+@media (max-width: 420px) {
+  .tiles { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .tile-icon { font-size: 20px; }
+  .tile-label { font-size: 12px; }
 }
