@@ -3,6 +3,9 @@
 // 지도: 카카오맵 JavaScript 키가 있으면 카카오맵, 없으면 간단한 반경 지도(SVG)로 표시
 
 import { useEffect, useRef, useState } from 'react';
+import { FOOD_GROUPS } from '@/lib/score';
+
+const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
 
 const JS_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 
@@ -31,6 +34,7 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
   const box = useRef(null);
   const map = useRef(null);
   const layers = useRef([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -41,6 +45,7 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
           center: new kakao.maps.LatLng(center.lat, center.lng),
           level: 4,
         });
+        setReady(true);
       })
       .catch(() => onFail());
     return () => {
@@ -49,31 +54,60 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 큰 화면에서는 왼쪽 패널이 지도를 가리므로, 보이는 영역의 가운데로 맞춤
+  function panelOffset() {
+    return typeof window !== 'undefined' && window.innerWidth >= 900 ? 220 : 0;
+  }
+
+  // 위치나 반경이 바뀔 때만 지도 범위를 다시 맞춤 (가게를 고를 때마다 지도가 튀지 않게)
   useEffect(() => {
     const kakao = window.kakao;
-    if (!map.current || !kakao) return;
+    if (!ready || !kakao) return;
+    map.current.relayout();
+    const level = radius <= 300 ? 3 : radius <= 600 ? 4 : radius <= 1100 ? 5 : 6;
+    map.current.setLevel(level);
+    map.current.setCenter(new kakao.maps.LatLng(center.lat, center.lng));
+    const dx = panelOffset();
+    if (dx) map.current.panBy(-dx, 0);
+  }, [ready, center, radius]);
+
+  // 반경 원과 가게 핀 그리기
+  useEffect(() => {
+    const kakao = window.kakao;
+    if (!ready || !kakao) return;
     layers.current.forEach((l) => l.setMap(null));
     layers.current = [];
 
-    const c = new kakao.maps.LatLng(center.lat, center.lng);
     layers.current.push(
       new kakao.maps.Circle({
         map: map.current,
-        center: c,
+        center: new kakao.maps.LatLng(center.lat, center.lng),
         radius,
-        strokeWeight: 1.5,
-        strokeColor: '#2f5d50',
-        strokeOpacity: 0.6,
-        fillColor: '#2f5d50',
-        fillOpacity: 0.06,
+        strokeWeight: 2,
+        strokeColor: '#2251e0',
+        strokeOpacity: 0.55,
+        strokeStyle: 'shortdash',
+        fillColor: '#2251e0',
+        fillOpacity: 0.04,
       })
     );
 
     places.forEach((p, i) => {
+      const on = p.id === selectedId;
       const el = document.createElement('button');
-      el.className = `pin${p.id === selectedId ? ' pin--on' : ''}`;
-      el.textContent = i < 9 ? String(i + 1) : '';
+      el.className = `pin${on ? ' pin--on' : ''}`;
       el.title = p.name;
+      el.innerHTML = '';
+      const icon = document.createElement('span');
+      icon.className = 'pin-icon';
+      icon.textContent = GROUP_ICON[p.group] || '🍽️';
+      el.appendChild(icon);
+      if (on || i < 3) {
+        const label = document.createElement('span');
+        label.className = 'pin-label';
+        label.textContent = p.name;
+        el.appendChild(label);
+      }
       el.onclick = () => onSelect(p.id);
       layers.current.push(
         new kakao.maps.CustomOverlay({
@@ -81,15 +115,26 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail }) {
           position: new kakao.maps.LatLng(p.lat, p.lng),
           content: el,
           yAnchor: 0.5,
-          zIndex: p.id === selectedId ? 10 : 1,
+          xAnchor: 0.5,
+          zIndex: on ? 10 : i < 3 ? 5 : 1,
         })
       );
     });
+  }, [ready, center, radius, places, selectedId, onSelect]);
 
-    const level = radius <= 300 ? 3 : radius <= 600 ? 4 : radius <= 1100 ? 5 : 6;
-    map.current.setLevel(level);
-    map.current.setCenter(c);
-  }, [center, radius, places, selectedId, onSelect]);
+  // 가게를 고르면 그 위치로 부드럽게 이동
+  useEffect(() => {
+    const kakao = window.kakao;
+    if (!ready || !kakao || !selectedId) return;
+    const p = places.find((x) => x.id === selectedId);
+    if (!p) return;
+    const proj = map.current.getProjection();
+    const pt = proj.containerPointFromCoords(new kakao.maps.LatLng(p.lat, p.lng));
+    const dx = panelOffset();
+    const target = proj.coordsFromContainerPoint(new kakao.maps.Point(pt.x - dx, pt.y));
+    map.current.panTo(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, selectedId]);
 
   return <div ref={box} className="map" />;
 }

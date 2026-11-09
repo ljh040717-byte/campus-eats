@@ -38,17 +38,6 @@ function Chip({ on, onClick, children, disabled, title, icon }) {
   );
 }
 
-// 큰 아이콘 타일 (음식 종류)
-function Tile({ on, onClick, icon, label, count, hint }) {
-  return (
-    <button className={`tile${on ? ' on' : ''}`} onClick={onClick} aria-pressed={on} title={hint} disabled={!count}>
-      <span className="tile-icon" aria-hidden="true">{icon}</span>
-      <span className="tile-label">{label}</span>
-      <span className="tile-count">{count}</span>
-    </button>
-  );
-}
-
 const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
 const COLOR_BY_KEY = Object.fromEntries(FOOD_COLORS.map((c) => [c.key, c]));
 
@@ -149,13 +138,17 @@ export default function App({ defaultCenter, centerName }) {
     }
   }
 
+  // 날씨 카드에 항상 보여주기 위해 위치가 바뀔 때마다 받아 옴 (무료, 키 불필요)
   useEffect(() => {
-    if (!weatherOn || weather) return;
+    let alive = true;
     fetch(`/api/weather?lat=${center.lat}&lng=${center.lng}`)
       .then((r) => r.json())
-      .then(setWeather)
-      .catch(() => setWeather({ source: 'unavailable' }));
-  }, [weatherOn, weather, center]);
+      .then((w) => alive && setWeather(w))
+      .catch(() => alive && setWeather({ source: 'unavailable' }));
+    return () => {
+      alive = false;
+    };
+  }, [center]);
 
   // 반경 안의 가게 수를 음식 종류별·색깔별로 셈 (타일에 숫자로 표시)
   const counts = useMemo(() => {
@@ -224,57 +217,84 @@ export default function App({ defaultCenter, centerName }) {
     setWeather(null);
   }
 
-  let weatherNote = '';
-  if (weatherOn && weather?.source === 'open-meteo') {
-    const tips = [];
-    if (weather.wet) tips.push('가까운 곳·매콤한 메뉴 우선');
-    if (weather.temp <= 10) tips.push('뜨끈한 국물 메뉴 가산점');
-    if (weather.temp >= 27) tips.push('시원하고 프레시한 메뉴 가산점');
-    weatherNote = `지금 ${Math.round(weather.temp)}°C · ${weather.label}${tips.length ? ` → ${tips.join(', ')}` : ''}`;
-  } else if (weatherOn && weather?.source === 'unavailable') {
-    weatherNote = '날씨 정보를 불러오지 못했어요';
-  } else if (weatherOn) {
-    weatherNote = '날씨 불러오는 중…';
+  const weatherOk = weather?.source === 'open-meteo';
+  const weatherIcon = !weatherOk ? '🌡️' : weather.label === '눈' ? '❄️' : weather.label === '비' ? '🌧️' : weather.label === '구름' ? '⛅' : weather.label === '안개' ? '🌫️' : '☀️';
+  let weatherTip = '';
+  if (weatherOk) {
+    if (weather.wet) weatherTip = '비 오는 날엔 가깝고 매콤한 곳';
+    else if (weather.temp <= 10) weatherTip = '쌀쌀해요, 뜨끈한 국물 어때요?';
+    else if (weather.temp >= 27) weatherTip = '더워요, 시원하고 프레시하게';
+    else weatherTip = '어디든 걷기 좋은 날씨';
   }
 
+  const blogLoading = blogProgress && blogProgress.done < blogProgress.total;
+
   return (
-    <div className="page">
-      <header className="top">
-        <div>
-          <p className="eyebrow">{where} 기준</p>
-          <h1>공릉 밥지도</h1>
+    <div className="app">
+      {/* ── 전체 화면 지도 ── */}
+      <div className="map-layer">
+        <MapView center={center} radius={radius} places={list} selectedId={selectedId} onSelect={select} />
+      </div>
+
+      {/* ── 지도 위 음식 종류 알약 버튼 ── */}
+      <nav className="pills" aria-label="음식 종류">
+        <button className={`pill${categories.length === 0 ? ' on' : ''}`} onClick={() => setCategories([])}>전체</button>
+        {FOOD_GROUPS.map((g) => (
+          <button key={g.key} className={`pill${categories.includes(g.key) ? ' on' : ''}`} title={g.hint}
+            aria-pressed={categories.includes(g.key)} onClick={() => toggleCategory(g.key)}>
+            <span aria-hidden="true">{g.icon}</span> {g.key}
+            <em>{counts.group[g.key] || 0}</em>
+          </button>
+        ))}
+      </nav>
+
+      {/* ── 지도 위 날씨 카드 ── */}
+      <div className="weather-card">
+        <span className="weather-icon" aria-hidden="true">{weatherIcon}</span>
+        <div className="weather-body">
+          <b>{weatherOk ? `${Math.round(weather.temp)}°` : '--°'}<small>{weatherOk ? weather.label : '날씨'}</small></b>
+          <span>{weatherOk ? weatherTip : '날씨 정보를 불러오는 중'}</span>
         </div>
-        <div className="loc">
-          {where === centerName ? (
-            <button className="ghost" onClick={useMyLocation}>내 위치로</button>
-          ) : (
-            <button className="ghost" onClick={resetLocation}>학교로</button>
+        <button className={`switch${weatherOn ? ' on' : ''}`} role="switch" aria-checked={weatherOn} disabled={!weatherOk}
+          onClick={() => setWeatherOn(!weatherOn)} title="날씨에 맞는 메뉴에 가산점">
+          <span className="switch-label">날씨 반영</span><span className="switch-knob" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* ── 내 위치 / 학교로 ── */}
+      <button className="locate" onClick={where === centerName ? useMyLocation : resetLocation}
+        title={where === centerName ? '내 위치로' : '학교로'} aria-label={where === centerName ? '내 위치로' : '학교로'}>
+        {where === centerName ? '◎' : '🏫'}
+      </button>
+
+      {/* ── 왼쪽 패널 ── */}
+      <aside className="panel">
+        <header className="brand">
+          <div className="brand-row">
+            <span className="logo" aria-hidden="true">밥</span>
+            <div>
+              <h1>공릉 밥지도</h1>
+              <p>{where} 주변 맛집을 지도로 한 번에!</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="panel-scroll">
+          {isMock && (
+            <div className="banner">
+              지금은 <b>예시 데이터</b>로 동작 중이에요. 가게 이름은 모두 가상이에요.
+            </div>
           )}
-        </div>
-      </header>
+          {data.sources?.places === 'osm' && (
+            <div className="banner">키 없이 <b>OpenStreetMap</b> 데이터를 쓰고 있어요. 빠진 가게가 있을 수 있어요.</div>
+          )}
+          {data.warnings?.map((w) => (
+            <div key={w} className="banner banner--warn">{w}</div>
+          ))}
 
-      {isMock && (
-        <div className="banner">
-          지금은 <b>예시 데이터</b>로 동작 중이에요. 가게 이름은 모두 가상이에요. <code>.env.local</code>에 API 키를 넣으면 실제 데이터로 바뀌어요.
-        </div>
-      )}
-      {data.sources?.places === 'osm' && (
-        <div className="banner">
-          키 없이 <b>OpenStreetMap</b>의 실제 식당 데이터를 쓰고 있어요. 등록 안 된 가게가 있을 수 있어요. 카카오 키를 넣으면 더 많은 가게가 나와요.
-        </div>
-      )}
-      {data.warnings?.map((w) => (
-        <div key={w} className="banner banner--warn">{w}</div>
-      ))}
-
-      <div className="layout">
-        <section className="panel">
-          <div className="group">
+          <section className="block">
             <h2>반경</h2>
             <Segmented label="반경" value={radius} onChange={setRadius} options={RADII.map((r) => [r, r >= 1000 ? `${r / 1000}km` : `${r}m`])} />
-          </div>
-
-          <div className="group">
             <h2>정렬</h2>
             <Segmented
               label="정렬"
@@ -282,55 +302,34 @@ export default function App({ defaultCenter, centerName }) {
               onChange={setSort}
               options={SORTS.map(([v, t]) => [v, t, !hasBlog && v !== 'distance'])}
             />
-            {blogProgress && blogProgress.done < blogProgress.total && (
-              <p className="hint">
-                네이버 후기 수 불러오는 중… {blogProgress.done}/{blogProgress.total}곳 (가까운 곳부터)
-              </p>
-            )}
-            {!hasBlog && !loading && !(blogProgress && blogProgress.done < blogProgress.total) && (
-              <p className="hint">
-                후기 수 데이터가 없어서 지금은 거리순으로만 정렬돼요. 네이버 검색 API 키를 넣으면 추천순과 후기 많은 순이 켜져요.
-              </p>
-            )}
-          </div>
+            {blogLoading && <p className="hint">후기 수 불러오는 중… {blogProgress.done}/{blogProgress.total}곳</p>}
+            {!hasBlog && !loading && !blogLoading && <p className="hint">네이버 키를 넣으면 추천순과 후기 많은 순이 켜져요.</p>}
+          </section>
 
-          <div className="group">
-            <h2>
-              음식 종류 {categories.length > 0 && <button className="link" onClick={() => setCategories([])}>전체</button>}
-            </h2>
-            <div className="tiles">
-              {FOOD_GROUPS.map((g) => (
-                <Tile key={g.key} icon={g.icon} label={g.key} hint={g.hint} count={counts.group[g.key] || 0}
-                  on={categories.includes(g.key)} onClick={() => toggleCategory(g.key)} />
-              ))}
-            </div>
-          </div>
-
-          <div className="group">
+          <section className="block">
             <h2>
               색깔로 고르기 {colors.length > 0 && <button className="link" onClick={() => setColors([])}>해제</button>}
             </h2>
-            <div className="swatches">
+            <div className="circles">
               {FOOD_COLORS.map((c) => (
-                <button key={c.key} className={`swatch${colors.includes(c.key) ? ' on' : ''}`} aria-pressed={colors.includes(c.key)}
-                  onClick={() => toggleColor(c.key)} disabled={!counts.color[c.key]}>
-                  <span className="swatch-dot" style={{ background: c.swatch }} aria-hidden="true" />
-                  <span className="swatch-text"><b>{c.desc}</b><em>{c.label} · {counts.color[c.key] || 0}</em></span>
+                <button key={c.key} className={`circle${colors.includes(c.key) ? ' on' : ''}`} aria-pressed={colors.includes(c.key)}
+                  onClick={() => toggleColor(c.key)} disabled={!counts.color[c.key]} title={c.label}>
+                  <span className="circle-dot" style={{ background: c.swatch }} aria-hidden="true" />
+                  <b>{c.desc}</b>
+                  <em>{counts.color[c.key] || 0}곳</em>
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="group">
+          <section className="block">
             <h2>특별 필터</h2>
             <div className="chips">
-              <Chip icon="🌦️" on={weatherOn} onClick={() => setWeatherOn(!weatherOn)}>날씨 반영</Chip>
               <Chip icon="⏱️" on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
               <Chip icon="✨" on={newOnly} disabled={!hasLicense} title={hasLicense ? '개업 1년 이내' : '공공데이터 연결 필요'} onClick={() => setNewOnly(!newOnly)}>
                 신상
               </Chip>
             </div>
-            {weatherNote && <p className="hint">{weatherNote}</p>}
             {gongang.on && (
               <div className="gongang">
                 <NumberField label="다음 수업까지" unit="분" value={gongang.left} onChange={(v) => setGongang({ ...gongang, left: v })} />
@@ -339,33 +338,16 @@ export default function App({ defaultCenter, centerName }) {
                 <p className="hint">왕복 도보 + 식사 + 대기 시간이 남은 시간 안에 들어오는 곳만 보여줘요.</p>
               </div>
             )}
-          </div>
+            <button className="roulette" onClick={roulette} disabled={!list.length}>
+              🎲 오늘 뭐 먹지? 랜덤 뽑기
+            </button>
+            {picked && list.some((p) => p.id === picked.id) && (
+              <p className="picked">오늘은 <b>{picked.name}</b> 어때요? 도보 {picked.walk}분</p>
+            )}
+          </section>
 
-          <button className="roulette" onClick={roulette} disabled={!list.length}>
-            🎲 오늘 뭐 먹지? 랜덤 뽑기
-          </button>
-          {picked && list.some((p) => p.id === picked.id) && (
-            <p className="picked">
-              오늘은 <b>{picked.name}</b> 어때요? 도보 {picked.walk}분
-            </p>
-          )}
-
-          {data.sources && (
-            <dl className="sources">
-              <div><dt>장소</dt><dd>{SOURCE_LABEL.places[data.sources.places]}</dd></div>
-              <div><dt>후기 수</dt><dd>{SOURCE_LABEL.blog[data.sources.blog]}</dd></div>
-              <div><dt>인허가</dt><dd>{SOURCE_LABEL.license[data.sources.license]}</dd></div>
-              {data.hiddenCount > 0 && <div><dt>폐업 목록으로 숨김</dt><dd>{data.hiddenCount}곳</dd></div>}
-              {data.sources.places === 'osm' && <div><dt>지도 데이터</dt><dd>© OpenStreetMap contributors</dd></div>}
-            </dl>
-          )}
-        </section>
-
-        <section className="results">
-          <MapView center={center} radius={radius} places={list} selectedId={selectedId} onSelect={select} />
-
-          <div className="count">
-            {loading ? '불러오는 중…' : error ? <span className="err">{error}</span> : `${list.length}곳`}
+          <div className="list-head">
+            <h2>{loading ? '불러오는 중…' : error ? <span className="err">{error}</span> : <>근처 맛집 <b>{list.length}</b>곳</>}</h2>
           </div>
 
           <ol className="cards">
@@ -374,28 +356,28 @@ export default function App({ defaultCenter, centerName }) {
               return (
                 <li key={p.id} id={`card-${p.id}`} className={`card${p.id === selectedId ? ' card--on' : ''}`}>
                   <button className="card-main" onClick={() => { setSelectedId(p.id); setOpenId(open ? null : p.id); }} aria-expanded={open}>
-                    <span className="rank">{i + 1}</span>
                     <span className="food-icon" aria-hidden="true" title={p.group}>{GROUP_ICON[p.group]}</span>
                     <span className="card-body">
                       <span className="name">
+                        <span className="rank">{i + 1}</span>
                         {p.name}
                         {isNew(p) && <span className="tag tag--new">신상</span>}
                         {isOld(p) && <span className="tag tag--old">노포</span>}
-                        {p.license?.closed && <span className="tag tag--closed">폐업</span>}
                       </span>
                       <span className="meta">
                         {p.colors.map((c) => (
                           <span key={c} className="cdot" style={{ background: COLOR_BY_KEY[c].swatch }} title={COLOR_BY_KEY[c].desc} />
                         ))}
-                        {p.group} · {subCategory(p.category)} · {p.distance}m · 도보 {p.walk}분
-                        {hasBlog && ` · 후기 ${p.blogCount ?? '?'}개`}
+                        {p.group} · {subCategory(p.category)}
                       </span>
-                      <span className="bar" aria-hidden="true"><span style={{ width: `${Math.min(100, p.score * 100)}%` }} /></span>
+                      <span className="meta meta--sub">
+                        🚶 {p.walk}분 · {p.distance}m{hasBlog && ` · 후기 ${p.blogCount ?? '?'}`}
+                      </span>
                     </span>
+                    <span className="score" aria-label={`추천 점수 ${Math.round(p.score * 100)}`}>{Math.round(p.score * 100)}</span>
                   </button>
                   {open && (
                     <div className="detail">
-                      <p className="cat">{p.category}</p>
                       <p>{p.address}</p>
                       {p.phone && <p>{p.phone}</p>}
                       {p.license?.permitDate && <p>인허가일 {p.license.permitDate} · {p.license.status}</p>}
@@ -405,11 +387,11 @@ export default function App({ defaultCenter, centerName }) {
                         {p.parts.W > 0 && ` + 날씨 ${p.parts.W}`}
                       </p>
                       {p.url && !p.id.startsWith('osm-') && (
-                        <a href={p.url} target="_blank" rel="noreferrer">카카오맵에서 메뉴·리뷰 보기 ↗</a>
+                        <a href={p.url} target="_blank" rel="noreferrer">카카오맵에서 메뉴·리뷰 보기 →</a>
                       )}
                       {p.id.startsWith('osm-') && (
                         <a href={`https://map.kakao.com/link/search/${encodeURIComponent(p.name)}`} target="_blank" rel="noreferrer">
-                          카카오맵에서 검색 ↗
+                          카카오맵에서 검색 →
                         </a>
                       )}
                     </div>
@@ -419,8 +401,18 @@ export default function App({ defaultCenter, centerName }) {
             })}
           </ol>
           {!loading && !error && list.length === 0 && <p className="empty">조건에 맞는 곳이 없어요. 필터를 조금 풀어보세요.</p>}
-        </section>
-      </div>
+
+          {data.sources && (
+            <dl className="sources">
+              <div><dt>장소</dt><dd>{SOURCE_LABEL.places[data.sources.places]}</dd></div>
+              <div><dt>후기 수</dt><dd>{SOURCE_LABEL.blog[data.sources.blog]}</dd></div>
+              <div><dt>날씨</dt><dd>Open-Meteo</dd></div>
+              {data.hiddenCount > 0 && <div><dt>폐업 목록으로 숨김</dt><dd>{data.hiddenCount}곳</dd></div>}
+              {data.sources.places === 'osm' && <div><dt>지도 데이터</dt><dd>© OpenStreetMap contributors</dd></div>}
+            </dl>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }
