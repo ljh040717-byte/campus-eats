@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapView from './MapView';
+import LottoDraw from './LottoDraw';
 import { filterAndScore, isNew, isOld, subCategory, foodGroup, foodColors, FOOD_GROUPS, FOOD_COLORS } from '@/lib/score';
 
 const RADII = [300, 500, 1000, 1500];
@@ -71,6 +72,7 @@ export default function App({ defaultCenter, centerName }) {
   const [selectedId, setSelectedId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [picked, setPicked] = useState(null);
+  const [drawing, setDrawing] = useState(false);
   const [blogProgress, setBlogProgress] = useState(null);
 
   // 반경 최대치(1500m)로 한 번 불러오고, 작은 반경은 화면에서 거름 → API 호출 절약
@@ -194,10 +196,21 @@ export default function App({ defaultCenter, centerName }) {
 
   function roulette() {
     if (!list.length) return;
-    const p = list[Math.floor(Math.random() * list.length)];
-    setPicked(p);
-    select(p.id);
+    setDrawing(true);
   }
+
+  // 추첨이 끝나면: 화면을 닫고 지도에서 당첨 가게 위치를 보여줌
+  const finishDraw = useCallback((p) => {
+    setDrawing(false);
+    setPicked(p);
+    setSelectedId(p.id);
+    setOpenId(p.id);
+    if (window.innerWidth < 900) {
+      window.scrollTo({ top: 0, behavior: 'smooth' }); // 휴대폰: 위쪽 지도로 올라감
+    } else {
+      setTimeout(() => document.getElementById(`card-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    }
+  }, []);
 
   function useMyLocation() {
     if (!navigator.geolocation) return;
@@ -231,6 +244,7 @@ export default function App({ defaultCenter, centerName }) {
 
   return (
     <div className="app">
+      {drawing && <LottoDraw candidates={list} onDone={finishDraw} onClose={() => setDrawing(false)} />}
       {/* ── 전체 화면 지도 ── */}
       <div className="map-layer">
         <MapView center={center} radius={radius} places={list} selectedId={selectedId} onSelect={select} />
