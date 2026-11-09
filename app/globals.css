@@ -356,3 +356,58 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .pick-chip span.ic { width: 30px; height: 30px; border-radius: 50%; background: var(--pick); border: 2px solid #2B2A4C; display: grid; place-items: center; font-size: 16px; flex: none; }
 .pick-chip b { flex: 1; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pick-chip em { font-style: normal; font-size: 12.5px; color: #6b6a86; flex: none; }
+
+/* ── 리스트·후보 카드: 크고 귀엽게 (위 규칙 덮어씀) ── */
+.list-head h2 { font-family: 'Jua', 'Pretendard Variable', sans-serif; font-weight: 400; font-size: 20px; color: #2B2A4C; }
+.list-head b { color: #FF7A6B; }
+.cards { padding: 4px 14px 14px; display: grid; gap: 10px; }
+.card { border: 2.5px solid #2B2A4C; border-radius: 20px; background: #fff; box-shadow: 0 3px 0 #2B2A4C; transition: transform .12s, box-shadow .12s; }
+.card + .card { border-top: 2.5px solid #2B2A4C; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 5px 0 #2B2A4C; }
+.card--on, .card--on + .card { border-top-color: #2B2A4C !important; }
+.card--on { background: #FFF4E4; }
+.card-main { padding: 12px 12px; gap: 13px; align-items: center; }
+.food-icon {
+  position: relative; flex: none; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 28px; background: var(--pick, #eee); border: 2.5px solid #2B2A4C;
+}
+.card--on .food-icon { background: var(--pick, #eee); }
+.food-icon .rank {
+  position: absolute; top: -6px; left: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px;
+  background: #2B2A4C; color: #fff; font-size: 11.5px; font-weight: 800; display: grid; place-items: center; line-height: 1;
+}
+.card--on .food-icon .rank { background: #2B2A4C; }
+.card-body { gap: 4px; }
+.card .name { font-family: 'Jua', 'Pretendard Variable', sans-serif; font-weight: 400; font-size: 19px; line-height: 1.25; color: #2B2A4C; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.card .meta { font-size: 13.5px; color: #6b6a86; }
+.stats { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.stat { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 999px; font-size: 13.5px; font-weight: 800; line-height: 1.3; white-space: nowrap; }
+.stat--walk { background: #FFC94D; color: #2B2A4C; border: 2px solid #2B2A4C; }
+.stat--blog { background: #E6F0FF; color: #2251e0; }
+.stat--dist { background: #F1F0F6; color: #6b6a86; font-weight: 700; }
+.detail { padding: 0 16px 14px 82px; font-size: 14px; color: #4b4a66; }
+.detail p { margin: 3px 0; }
+.detail a {
+  margin-top: 10px; padding: 7px 14px; border-radius: 999px; background: #FFC94D; color: #2B2A4C;
+  border: 2px solid #2B2A4C; box-shadow: 0 2px 0 #2B2A4C; font-size: 13.5px;
+}
+.tag { font-family: 'Pretendard Variable', sans-serif; font-size: 11.5px; }
+@media (max-width: 899px) { .detail { padding-left: 16px; } }
+
+.pick-chip { padding: 9px 11px; gap: 10px; }
+.pick-chip span.ic { width: 40px; height: 40px; font-size: 21px; }
+.pick-text { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.pick-text b { font-family: 'Jua', 'Pretendard Variable', sans-serif; font-weight: 400; font-size: 17px; }
+.pick-chip .stats { margin: 0; }
+.pick-chip .stat { font-size: 12.5px; padding: 2px 8px; }
+.pick-chip.on .stat--walk { background: #fff; }
+
+.lotto-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 2px; }
+.lotto-stats .stat { font-size: 15px; padding: 4px 12px; }
+.lotto-meta { font-size: 12.5px; }
+@media (max-width: 560px) {
+  .lotto-card { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 4px; }
+  .lotto-ball { grid-row: 1 / span 3; }
+  .lotto-stats { justify-content: flex-start; }
+  .lotto-meta { text-align: left; }
+}
