@@ -404,9 +404,6 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
             <h2>✨ 특별 필터</h2>
             <div className="chips">
               <Chip icon="⏱️" on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
-              <Chip icon="✨" on={newOnly} disabled={!hasLicense} title={hasLicense ? '개업 1년 이내' : '공공데이터 연결 필요'} onClick={() => setNewOnly(!newOnly)}>
-                신상
-              </Chip>
             </div>
             {gongang.on && (
               <div className="gongang">
