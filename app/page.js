@@ -7,6 +7,9 @@ const center = {
 };
 const centerName = process.env.NEXT_PUBLIC_CENTER_NAME || '서울과기대';
 
+// 부제(편 이름). 다른 동네 버전을 만들 때는 NEXT_PUBLIC_EDITION 만 바꾸면 됨
+const edition = process.env.NEXT_PUBLIC_EDITION || '공릉편';
+
 export default function Page() {
-  return <App defaultCenter={center} centerName={centerName} />;
+  return <App defaultCenter={center} centerName={centerName} edition={edition} />;
 }

@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: '공릉 밥지도',
-  description: '학교 근처 맛집 탐방 – 카카오 로컬, 네이버 블로그, 공공데이터를 엮은 추천 웹사이트',
+  title: '골라밥 -공릉편-',
+  description: '오늘 뭐 먹지? 학교 근처 맛집을 골라주는 귀여운 밥 지도',
 };
 
 export const viewport = { width: 'device-width', initialScale: 1 };
