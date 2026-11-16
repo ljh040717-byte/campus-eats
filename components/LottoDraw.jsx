@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FOOD_GROUPS, weightedPicks } from '@/lib/score';
+import { sfx } from '@/lib/sfx';
 
 const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
 export const GROUP_PASTEL = { 한식: '#FF9B85', 중식: '#FFC94D', 일식: '#7FB2FF', 양식: '#6FD3A4', 기타: '#C3A3FF' };
@@ -90,6 +91,7 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
     let next = 0; // 다음에 나올 공 번호
     let nextAt = start + MIX_MS;
     let finished = false;
+    let lastTick = 0;
 
     function drawBall(b, s = 1) {
       const r = BR * s;
@@ -278,6 +280,7 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
           b.x = tx;
           b.y = ty;
           b.state = 'slot';
+          sfx.land(b.order);
           b.landAt = now;
         }
       }
@@ -289,6 +292,7 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
       if (mixing && now >= nextAt && pickBalls[next].state === 'dome') {
         const b = pickBalls[next];
         Object.assign(b, { state: 'exit', t0: now, dur: EXIT_MS, from: { x: b.x, y: b.y } });
+        sfx.roll();
         next += 1;
         nextAt = now + GAP_MS;
       }
@@ -296,6 +300,10 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
       physics(blow);
       for (const b of pickBalls) if (['exit', 'chute', 'pop'].includes(b.state)) moveBall(b, now);
 
+      if (mixing && now - lastTick > 95) {
+        lastTick = now;
+        sfx.tick(); // 통 안에서 달그락달그락
+      }
       const shake = mixing ? Math.sin(t / 45) * 2.2 : 0;
       ctx.clearRect(0, 0, W, H);
       for (const b of pickBalls) if (b.state === 'chute') drawBall(b); // 몸통 뒤로 지나감
@@ -316,7 +324,7 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
 
       if (!finished && pickBalls.every((b) => b.state === 'slot')) {
         finished = true;
-        setTimeout(() => setPhase('reveal'), 180);
+        setTimeout(() => { setPhase('reveal'); sfx.tada(); }, 180);
       }
       if (!finished || now - Math.max(...pickBalls.map((b) => b.landAt || 0)) < 300) raf = requestAnimationFrame(frame);
     }

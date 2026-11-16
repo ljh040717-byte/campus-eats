@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapView from './MapView';
 import LottoDraw, { GROUP_PASTEL } from './LottoDraw';
+import Mascot from './Mascot';
+import { sfx, isMuted, setMuted } from '@/lib/sfx';
 import { filterAndScore, isNew, isOld, subCategory, foodGroup, foodColors, FOOD_GROUPS, FOOD_COLORS } from '@/lib/score';
 
 const RADII = [300, 500, 1000, 1500];
 const SORTS = [
-  ['score', '추천순'],
-  ['distance', '거리순'],
-  ['blog', '후기 많은 순'],
+  ['score', '👍 추천순'],
+  ['distance', '👟 가까운 순'],
+  ['blog', '💬 후기순'],
 ];
 
 // 후기 수 보기 좋게 (1529 → 1.5천)
@@ -55,6 +57,17 @@ function Chip({ on, onClick, children, disabled, title, icon }) {
 
 const GROUP_ICON = Object.fromEntries(FOOD_GROUPS.map((g) => [g.key, g.icon]));
 const COLOR_BY_KEY = Object.fromEntries(FOOD_COLORS.map((c) => [c.key, c]));
+const COLOR_ICON = { red: '🌶️', white: '🍲', brown: '🍖', green: '🥗' };
+
+// 시간대별 인사말
+function mealWord(h) {
+  if (h < 5) return '야식';
+  if (h < 10) return '아침';
+  if (h < 15) return '점심';
+  if (h < 17) return '간식';
+  if (h < 22) return '저녁';
+  return '야식';
+}
 
 function NumberField({ label, value, onChange, unit }) {
   return (
@@ -66,7 +79,7 @@ function NumberField({ label, value, onChange, unit }) {
   );
 }
 
-export default function App({ defaultCenter, centerName }) {
+export default function App({ defaultCenter, centerName, edition = '공릉편' }) {
   const [center, setCenter] = useState(defaultCenter);
   const [where, setWhere] = useState(centerName);
   const [radius, setRadius] = useState(1000);
@@ -88,6 +101,32 @@ export default function App({ defaultCenter, centerName }) {
   const [picks, setPicks] = useState([]); // 랜덤 뽑기 후보 3곳
   const [drawing, setDrawing] = useState(false);
   const [blogProgress, setBlogProgress] = useState(null);
+  const [meal, setMeal] = useState('오늘');
+  const [mute, setMute] = useState(false);
+
+  useEffect(() => {
+    setMeal(mealWord(new Date().getHours()));
+    setMute(isMuted());
+  }, []);
+
+  // 버튼·아이콘을 누를 때마다 귀여운 효과음 (눌린 것 종류에 따라 다른 소리)
+  useEffect(() => {
+    const onClick = (e) => {
+      const el = e.target.closest?.('button, a, .dot');
+      if (!el || el.disabled || el.matches('.mute')) return;
+      if (el.matches('.roulette, .lotto-again')) return sfx.start();
+      if (el.matches('.lotto-card, .lotto-go')) return sfx.pick();
+      if (el.matches('.pin, .pin-mini, .dot, .pick-chip, .locate')) return sfx.pin();
+      if (el.matches('.card-main')) return sfx.open();
+      if (el.matches('.switch, .chip, .circle')) {
+        const wasOn = el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-checked') === 'true';
+        return wasOn ? sfx.off() : sfx.on();
+      }
+      sfx.pop();
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
 
   // 반경 최대치(1500m)로 한 번 불러오고, 작은 반경은 화면에서 거름 → API 호출 절약
   useEffect(() => {
@@ -270,7 +309,7 @@ export default function App({ defaultCenter, centerName }) {
 
       {/* ── 지도 위 음식 종류 알약 버튼 ── */}
       <nav className="pills" aria-label="음식 종류">
-        <button className={`pill${categories.length === 0 ? ' on' : ''}`} onClick={() => setCategories([])}>전체</button>
+        <button className={`pill${categories.length === 0 ? ' on' : ''}`} onClick={() => setCategories([])}><span aria-hidden="true">🍴</span> 전체</button>
         {FOOD_GROUPS.map((g) => (
           <button key={g.key} className={`pill${categories.includes(g.key) ? ' on' : ''}`} title={g.hint}
             aria-pressed={categories.includes(g.key)} onClick={() => toggleCategory(g.key)}>
@@ -296,18 +335,25 @@ export default function App({ defaultCenter, centerName }) {
       {/* ── 내 위치 / 학교로 ── */}
       <button className="locate" onClick={where === centerName ? useMyLocation : resetLocation}
         title={where === centerName ? '내 위치로' : '학교로'} aria-label={where === centerName ? '내 위치로' : '학교로'}>
-        {where === centerName ? '◎' : '🏫'}
+        {where === centerName ? '📍' : '🏫'}
       </button>
 
       {/* ── 왼쪽 패널 ── */}
       <aside className="panel">
         <header className="brand">
           <div className="brand-row">
-            <span className="logo" aria-hidden="true">밥</span>
-            <div>
-              <h1>공릉 밥지도</h1>
-              <p>{where} 주변 맛집을 지도로 한 번에!</p>
+            <Mascot />
+            <div className="brand-text">
+              <h1 className="title" aria-label={`골라밥 ${edition}`}>
+                <span className="title-main" aria-hidden="true"><i>골</i><i>라</i><i>밥</i></span>
+                <span className="title-sub" aria-hidden="true">-{edition}-</span>
+              </h1>
+              <p>{where} 근처, {meal} 뭐 먹지?</p>
             </div>
+            <button className="mute" onClick={() => { setMuted(!mute); setMute(!mute); }}
+              aria-pressed={!mute} aria-label={mute ? '효과음 켜기' : '효과음 끄기'} title={mute ? '효과음 켜기' : '효과음 끄기'}>
+              {mute ? '🔇' : '🔊'}
+            </button>
           </div>
         </header>
 
@@ -325,9 +371,9 @@ export default function App({ defaultCenter, centerName }) {
           ))}
 
           <section className="block">
-            <h2>반경</h2>
+            <h2>📏 얼마나 멀리?</h2>
             <Segmented label="반경" value={radius} onChange={setRadius} options={RADII.map((r) => [r, r >= 1000 ? `${r / 1000}km` : `${r}m`])} />
-            <h2>정렬</h2>
+            <h2>↕️ 어떤 순서로?</h2>
             <Segmented
               label="정렬"
               value={hasBlog ? sort : 'distance'}
@@ -340,13 +386,13 @@ export default function App({ defaultCenter, centerName }) {
 
           <section className="block">
             <h2>
-              색깔로 고르기 {colors.length > 0 && <button className="link" onClick={() => setColors([])}>해제</button>}
+              🎨 색깔로 고르기 {colors.length > 0 && <button className="link" onClick={() => setColors([])}>해제</button>}
             </h2>
             <div className="circles">
               {FOOD_COLORS.map((c) => (
                 <button key={c.key} className={`circle${colors.includes(c.key) ? ' on' : ''}`} aria-pressed={colors.includes(c.key)}
                   onClick={() => toggleColor(c.key)} disabled={!counts.color[c.key]} title={c.label}>
-                  <span className="circle-dot" style={{ background: c.swatch }} aria-hidden="true" />
+                  <span className="circle-dot" style={{ background: c.swatch }} aria-hidden="true">{COLOR_ICON[c.key]}</span>
                   <b>{c.desc}</b>
                   <em>{counts.color[c.key] || 0}곳</em>
                 </button>
@@ -355,7 +401,7 @@ export default function App({ defaultCenter, centerName }) {
           </section>
 
           <section className="block">
-            <h2>특별 필터</h2>
+            <h2>✨ 특별 필터</h2>
             <div className="chips">
               <Chip icon="⏱️" on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
               <Chip icon="✨" on={newOnly} disabled={!hasLicense} title={hasLicense ? '개업 1년 이내' : '공공데이터 연결 필요'} onClick={() => setNewOnly(!newOnly)}>
@@ -371,7 +417,7 @@ export default function App({ defaultCenter, centerName }) {
               </div>
             )}
             <button className="roulette" onClick={roulette} disabled={!list.length}>
-              🎲 오늘 뭐 먹지? 랜덤 뽑기
+              <span className="dice" aria-hidden="true">🎲</span> 오늘 뭐 먹지? 뽑기!
             </button>
             {pickList.length > 0 && (
               <div className="picks">
@@ -399,7 +445,7 @@ export default function App({ defaultCenter, centerName }) {
           </section>
 
           <div className="list-head">
-            <h2>{loading ? '불러오는 중…' : error ? <span className="err">{error}</span> : <>근처 맛집 <b>{list.length}</b>곳</>}</h2>
+            <h2>{loading ? '맛집 찾는 중… 🍚' : error ? <span className="err">{error}</span> : <>🍽️ 근처 맛집 <b>{list.length}</b>곳</>}</h2>
           </div>
 
           <ol className="cards">
@@ -447,7 +493,7 @@ export default function App({ defaultCenter, centerName }) {
               );
             })}
           </ol>
-          {!loading && !error && list.length === 0 && <p className="empty">조건에 맞는 곳이 없어요. 필터를 조금 풀어보세요.</p>}
+          {!loading && !error && list.length === 0 && <p className="empty">🥲 조건에 맞는 곳이 없어요.<br />필터를 조금 풀어보세요!</p>}
 
           {data.sources && (
             <dl className="sources">

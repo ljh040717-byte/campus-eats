@@ -87,10 +87,10 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail, pickId
         center: new kakao.maps.LatLng(center.lat, center.lng),
         radius,
         strokeWeight: 2,
-        strokeColor: '#2251e0',
+        strokeColor: '#2B2A4C',
         strokeOpacity: 0.55,
         strokeStyle: 'shortdash',
-        fillColor: '#2251e0',
+        fillColor: '#FFC94D',
         fillOpacity: 0.04,
       })
     );
@@ -117,12 +117,14 @@ function KakaoMap({ center, radius, places, selectedId, onSelect, onFail, pickId
       }
       if (i >= ICON_PINS && !on) {
         el.className = 'pin-mini';
+        el.style.setProperty('--pick', GROUP_PASTEL[p.group] || '#fff');
         layers.current.push(
           new kakao.maps.CustomOverlay({ map: map.current, position: new kakao.maps.LatLng(p.lat, p.lng), content: el, yAnchor: 0.5, xAnchor: 0.5, zIndex: 0 })
         );
         return;
       }
       el.className = `pin${on ? ' pin--on' : ''}`;
+      el.style.setProperty('--pick', GROUP_PASTEL[p.group] || '#fff');
       const icon = document.createElement('span');
       icon.className = 'pin-icon';
       icon.textContent = GROUP_ICON[p.group] || '🍽️';
