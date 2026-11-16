@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './MapView';
 import LottoDraw, { GROUP_PASTEL } from './LottoDraw';
 import Mascot from './Mascot';
@@ -113,7 +113,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
   useEffect(() => {
     const onClick = (e) => {
       const el = e.target.closest?.('button, a, .dot');
-      if (!el || el.disabled || el.matches('.mute')) return;
+      if (!el || el.disabled || el.matches('.mute, .rush-strip')) return;
       if (el.matches('.roulette, .lotto-again')) return sfx.start();
       if (el.matches('.lotto-card, .lotto-go')) return sfx.pick();
       if (el.matches('.pin, .pin-mini, .dot, .pick-chip, .locate')) return sfx.pin();
@@ -299,8 +299,35 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
 
   const blogLoading = blogProgress && blogProgress.done < blogProgress.total;
 
+  // 🚨 빠밥 모드: 공강 모드에서 다음 수업까지 1시간 이내면 화면이 빨개지고 사이렌이 울림
+  const rush = gongang.on && gongang.left <= 60;
+  const [siren, setSiren] = useState(false);
+  const alerted = useRef(false);
+  useEffect(() => {
+    if (!rush) {
+      const t = setTimeout(() => { alerted.current = false; }, 800);
+      return () => clearTimeout(t);
+    }
+    if (alerted.current) return undefined;
+    // 숫자를 입력하는 도중에는 울리지 않게 잠깐 기다렸다가 한 번만 울림
+    const t = setTimeout(() => { alerted.current = true; setSiren(true); sfx.siren(); }, 450);
+    return () => clearTimeout(t);
+  }, [rush]);
+  useEffect(() => {
+    if (!siren) return undefined;
+    const t = setTimeout(() => setSiren(false), 2600);
+    return () => clearTimeout(t);
+  }, [siren]);
+
   return (
-    <div className="app">
+    <div className={`app${rush ? ' app--rush' : ''}`}>
+      {siren && (
+        <div className="rush" role="alertdialog" aria-label="빠밥하자" onClick={() => setSiren(false)}>
+          <span className="rush-light" aria-hidden="true">🚨</span>
+          <p className="rush-title" aria-hidden="true"><i>빠</i><i>밥</i><i>하</i><i>자</i></p>
+          <p className="rush-sub">다음 수업까지 <b>{gongang.left}분</b>! 얼른 먹으러 가요</p>
+        </div>
+      )}
       {drawing && <LottoDraw candidates={list} onDone={finishDraw} onClose={() => setDrawing(false)} />}
       {/* ── 전체 화면 지도 ── */}
       <div className="map-layer">
@@ -356,6 +383,13 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
             </button>
           </div>
         </header>
+        {rush && (
+          <button className="rush-strip" onClick={() => { setSiren(true); sfx.siren(); }} title="사이렌 다시 울리기">
+            <span className="rush-strip-light" aria-hidden="true">🚨</span>
+            <b>빠 밥 하 자</b>
+            <em>{gongang.left}분 남았어요!</em>
+          </button>
+        )}
 
         <div className="panel-scroll">
           {isMock && (
