@@ -614,3 +614,61 @@ button { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   .panel, .weather-card, .card, .title-main i, .mascot, .steam, .dice, .weather-icon, .pin--on .pin-icon { animation: none; }
 }
+
+/* ── 🚨 빠밥 모드: 다음 수업까지 1시간 이내 (공강 모드) ── */
+.rush {
+  position: fixed; inset: 0; z-index: 120; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 20px; text-align: center; cursor: pointer; color: #fff;
+  background-color: #FF3B30; background-image: radial-gradient(rgba(255,255,255,.22) 2px, transparent 2px); background-size: 24px 24px;
+  animation: rush-flash .6s steps(1) infinite, lotto-in .2s ease-out;
+}
+@keyframes rush-flash { 0%, 100% { background-color: #FF3B30; } 50% { background-color: #C4161C; } }
+.rush-light {
+  font-size: 120px; line-height: 1; filter: drop-shadow(0 8px 0 #2B2A4C);
+  animation: rush-wobble .3s ease-in-out infinite alternate;
+}
+@keyframes rush-wobble { from { transform: rotate(-14deg) scale(1); } to { transform: rotate(14deg) scale(1.12); } }
+.rush-title { margin: 10px 0 0; display: flex; gap: 18px; font-family: var(--cute); font-size: 84px; line-height: 1.1; }
+.rush-title i {
+  font-style: normal; display: inline-block; color: #FFC94D;
+  text-shadow: 3px 0 #2B2A4C, -3px 0 #2B2A4C, 0 3px #2B2A4C, 0 -3px #2B2A4C,
+    3px 3px #2B2A4C, -3px 3px #2B2A4C, 3px -3px #2B2A4C, -3px -3px #2B2A4C, 0 8px 0 #2B2A4C;
+  animation: rush-letter .5s var(--pop) both, rush-jump .6s ease-in-out infinite;
+}
+.rush-title i:nth-child(1) { animation-delay: 0s, .5s; }
+.rush-title i:nth-child(2) { animation-delay: .1s, .65s; }
+.rush-title i:nth-child(3) { animation-delay: .2s, .8s; }
+.rush-title i:nth-child(4) { animation-delay: .3s, .95s; }
+@keyframes rush-letter { from { opacity: 0; transform: translateY(-60px) scale(.3) rotate(-20deg); } to { opacity: 1; transform: none; } }
+@keyframes rush-jump { 0%, 100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+.rush-sub {
+  margin: 18px 0 0; font-family: var(--cute); font-size: 22px; color: #2B2A4C; background: #fff;
+  border: 3px solid #2B2A4C; border-radius: 999px; padding: 8px 20px; box-shadow: 0 5px 0 #2B2A4C;
+}
+.rush-sub b { font-weight: 400; color: #FF3B30; }
+
+/* 빠밥 모드 동안 화면 전체가 빨간 분위기 */
+.app--rush { --blue: #FF3B30; --blue-dark: #D92B22; --blue-soft: #FFE1DD; --bg: #FFE9E5; --line: #FFCFC8; }
+.app--rush .brand { background-color: #FFC7BF; background-image: radial-gradient(#FF9C90 1.6px, transparent 1.6px); }
+.app--rush .panel, .app--rush .weather-card { box-shadow: 0 6px 0 #C4161C; border-color: #C4161C; }
+.app--rush .map-layer::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  box-shadow: inset 0 0 0 6px #FF3B30, inset 0 0 90px rgba(255, 59, 48, .45);
+  animation: rush-glow 1.2s ease-in-out infinite;
+}
+@keyframes rush-glow { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.rush-strip {
+  flex: none; width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 8px 12px;
+  border: 0; border-bottom: 3px solid var(--ink); background: #FF3B30; color: #fff; font-family: var(--cute);
+}
+.rush-strip b { font-weight: 400; font-size: 21px; letter-spacing: 3px; color: #FFC94D; text-shadow: 0 2px 0 #2B2A4C; }
+.rush-strip em { font-style: normal; font-size: 14px; }
+.rush-strip-light { font-size: 22px; animation: rush-wobble .35s ease-in-out infinite alternate; }
+@media (max-width: 560px) {
+  .rush-light { font-size: 92px; }
+  .rush-title { font-size: 60px; gap: 10px; }
+  .rush-sub { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rush, .rush-light, .rush-title i, .rush-strip-light, .app--rush .map-layer::after { animation: none; }
+}
