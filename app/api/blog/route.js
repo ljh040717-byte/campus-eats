@@ -25,6 +25,7 @@ export async function POST(req) {
     .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string' && p.name.length <= 60)
     .map((p) => ({ id: p.id, name: p.name, jibun: typeof p.jibun === 'string' ? p.jibun.slice(0, 100) : '' }));
 
-  const { counts, failed } = await fetchBlogCounts(places);
-  return Response.json({ counts, failed });
+  // 한도 초과면 quota: true → 화면은 후기 수 없이(거리순으로) 계속 동작
+  const { counts, failed, quota } = await fetchBlogCounts(places);
+  return Response.json({ counts, failed, quota });
 }
