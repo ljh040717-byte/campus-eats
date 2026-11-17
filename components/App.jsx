@@ -108,6 +108,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
   const [picks, setPicks] = useState([]); // 랜덤 뽑기 후보 3곳
   const [drawing, setDrawing] = useState(false);
   const [blogProgress, setBlogProgress] = useState(null);
+  const [blogQuota, setBlogQuota] = useState(false); // 오늘 네이버 무료 한도를 다 썼는지
   const [meal, setMeal] = useState('오늘');
   const [mute, setMute] = useState(false);
 
@@ -149,7 +150,9 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
       .then((j) => {
         if (!alive) return;
         setData(j);
+        setBlogQuota(false);
         if (j.sources?.blog === 'naver') loadBlogCounts(j, () => alive);
+        if (j.sources?.blog === 'quota') setBlogQuota(true);
       })
       .catch((e) => alive && setError(e.message))
       .finally(() => alive && setLoading(false));
@@ -161,13 +164,14 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
 
   // 목록을 먼저 보여준 뒤, 가까운 가게부터 20곳씩 후기 수를 받아서 채워 넣음
   async function loadBlogCounts(j, isAlive) {
-    const targets = j.places.slice(0, j.blogLimit || 100);
+    const targets = j.places.slice(0, j.blogLimit || 40);
     const chunks = [];
     for (let i = 0; i < targets.length; i += 20) chunks.push(targets.slice(i, i + 20));
     setBlogProgress({ done: 0, total: targets.length });
 
     let done = 0;
     let failed = 0;
+    let stop = false;
     async function run(chunk) {
       try {
         const r = await fetch('/api/blog', {
@@ -178,6 +182,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
         const res = await r.json();
         if (!r.ok) throw new Error(res.error);
         failed += res.failed || 0;
+        if (res.quota) stop = true; // 오늘 네이버 한도 소진 → 남은 묶음은 요청하지 않음
         if (!isAlive()) return;
         setData((d) => ({
           ...d,
@@ -191,9 +196,14 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
     }
 
     // 동시에 2묶음씩 요청
-    for (let i = 0; i < chunks.length; i += 2) {
+    for (let i = 0; i < chunks.length && !stop; i += 2) {
       await Promise.all(chunks.slice(i, i + 2).map(run));
       if (!isAlive()) return;
+    }
+    if (stop) {
+      setBlogQuota(true);
+      setBlogProgress(null);
+      return;
     }
     if (failed && isAlive()) {
       setData((d) => ({ ...d, warnings: [...(d.warnings || []), `네이버 후기 수 ${failed}건 조회 실패`] }));
@@ -404,12 +414,15 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
               지금은 <b>예시 데이터</b>로 동작 중이에요. 가게 이름은 모두 가상이에요.
             </div>
           )}
-          {data.sources?.places === 'osm' && (
+          {data.sources?.places === 'osm' && !data.sources?.limited && (
             <div className="banner">키 없이 <b>OpenStreetMap</b> 데이터를 쓰고 있어요. 빠진 가게가 있을 수 있어요.</div>
           )}
           {data.warnings?.map((w) => (
             <div key={w} className="banner banner--warn">{w}</div>
           ))}
+          {blogQuota && (
+            <div className="banner banner--warn">😴 오늘 블로그 후기 수 무료 한도를 다 써서 후기 수는 쉬는 중이에요. 내일 자동으로 돌아와요!</div>
+          )}
 
           <section className="block">
             <h2>📏 얼마나 멀리?</h2>
@@ -428,7 +441,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
               options={SORTS.map(([v, t]) => [v, t, !hasBlog && v !== 'distance'])}
             />
             {blogLoading && <p className="hint">후기 수 불러오는 중… {blogProgress.done}/{blogProgress.total}곳</p>}
-            {!hasBlog && !loading && !blogLoading && <p className="hint">네이버 키를 넣으면 추천순과 후기 많은 순이 켜져요.</p>}
+            {!hasBlog && !loading && !blogLoading && <p className="hint">{blogQuota ? '후기 수가 쉬는 중이라 가까운 순으로 보여드려요.' : '네이버 키를 넣으면 추천순과 후기 많은 순이 켜져요.'}</p>}
           </section>
 
           <section className="block">
