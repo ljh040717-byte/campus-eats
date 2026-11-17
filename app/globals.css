@@ -672,3 +672,41 @@ button { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   .rush, .rush-light, .rush-title i, .rush-strip-light, .app--rush .map-layer::after { animation: none; }
 }
+
+/* ── 🚨 빠밥 모드 2: 지도까지 빨겛게 + 급한 뽑기 ── */
+.app--rush .map-layer::after {
+  background: rgba(255, 45, 32, .30); mix-blend-mode: multiply;
+  box-shadow: inset 0 0 0 7px #FF3B30, inset 0 0 120px rgba(220, 20, 20, .65);
+  animation: rush-glow .8s ease-in-out infinite;
+}
+@keyframes rush-glow { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.app--rush .pill.on, .app--rush .chip.on, .app--rush .seg button.on { background: #FF3B30; color: #fff; }
+.app--rush .roulette { animation: rush-shake .35s linear infinite; }
+@keyframes rush-shake { 0%, 100% { translate: 0 0; } 25% { translate: -2px 0; } 75% { translate: 2px 0; } }
+.rush-title i { animation-duration: .3s, .4s; }
+.hint--gong { margin: 8px 0 0; padding: 7px 10px; border-radius: 12px; background: var(--blue-soft); color: var(--ink); }
+.hint--gong b { color: var(--blue); }
+.seg button:disabled { opacity: .4; box-shadow: none; transform: translateY(2px); }
+
+.lotto--rush {
+  color: #fff; background-color: #FF3B30; background-image: radial-gradient(rgba(255,255,255,.22) 2px, transparent 2px);
+  background-size: 24px 24px; animation: rush-flash .5s steps(1) infinite, lotto-in .15s ease-out;
+}
+.lotto--rush .lotto-title {
+  display: flex; align-items: center; gap: 12px; font-size: 44px; color: #FFC94D;
+  text-shadow: 2px 0 #2B2A4C, -2px 0 #2B2A4C, 0 2px #2B2A4C, 0 -2px #2B2A4C, 2px 2px #2B2A4C, -2px 2px #2B2A4C, 2px -2px #2B2A4C, -2px -2px #2B2A4C, 0 6px 0 #2B2A4C;
+  animation: rush-shake .18s linear infinite;
+}
+.lotto-siren { display: inline-block; font-size: 40px; text-shadow: none; animation: rush-wobble .22s ease-in-out infinite alternate; }
+.lotto--rush .lotto-canvas { animation: rush-rattle .12s linear infinite; }
+@keyframes rush-rattle { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(-3px, 1px) rotate(-1.2deg); } 75% { transform: translate(3px, -1px) rotate(1.2deg); } }
+.lotto--rush .lotto-sub { color: #fff; }
+.lotto--rush .lotto-cards li { animation-duration: .3s; }
+.lotto--rush .lotto-card { box-shadow: 0 5px 0 #7A0C10; animation: rush-jump .5s ease-in-out infinite; }
+.lotto--rush .lotto-cards li:nth-child(2) .lotto-card { animation-delay: .12s; }
+.lotto--rush .lotto-cards li:nth-child(3) .lotto-card { animation-delay: .24s; }
+.lotto--rush .lotto-go { background: #FFC94D; }
+@media (max-width: 560px) { .lotto--rush .lotto-title { font-size: 34px; } .lotto-siren { font-size: 30px; } }
+@media (prefers-reduced-motion: reduce) {
+  .lotto--rush, .lotto--rush .lotto-title, .lotto--rush .lotto-canvas, .lotto--rush .lotto-card, .lotto-siren, .app--rush .roulette { animation: none; }
+}
