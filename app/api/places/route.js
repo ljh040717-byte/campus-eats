@@ -8,6 +8,7 @@ import { buildIndex, matchPlace } from '@/lib/match';
 import { mockPlaces } from '@/lib/mock';
 import { searchOsmRestaurants } from '@/lib/osm';
 import { loadClosedList, isListedClosed } from '@/lib/closedList';
+import { isBlocked } from '@/lib/quota';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,16 +36,37 @@ export async function GET(req) {
   if (process.env.USE_MOCK === '1') return mock();
 
   // 1) 주변 음식점: 카카오 키가 있으면 카카오, 없으면 OpenStreetMap(키 불필요), 둘 다 실패하면 예시 데이터
+  //    카카오가 한도 초과·오류면 OpenStreetMap으로 대신 보여줌 (사이트가 멈추지 않게)
   let places;
-  if (process.env.KAKAO_REST_API_KEY) {
+  let kakaoDown = null;
+  if (process.env.KAKAO_REST_API_KEY && !isBlocked('kakao')) {
     try {
       const result = await searchRestaurants({ lat, lng, radius });
       places = result.places;
       if (result.capped) warnings.push('식당이 너무 많아 일부만 불러왔어요.');
     } catch (e) {
-      return Response.json({ error: e.message }, { status: 502 });
+      kakaoDown = e.quota ? 'quota' : 'error';
     }
-  } else {
+  } else if (process.env.KAKAO_REST_API_KEY) {
+    kakaoDown = 'quota';
+  }
+  if (kakaoDown) {
+    try {
+      places = await searchOsmRestaurants({ lat, lng, radius });
+      sources.places = 'osm';
+      sources.limited = kakaoDown === 'quota' ? 'kakao-quota' : 'kakao-error';
+      warnings.push(
+        kakaoDown === 'quota'
+          ? '😴 오늘 카카오 무료 한도를 다 써서 OpenStreetMap 지도 데이터로 보여드려요. 빠진 가게가 있을 수 있고, 내일 자동으로 돌아와요.'
+          : '카카오에 잠깐 연결이 안 돼서 OpenStreetMap 지도 데이터로 보여드려요.'
+      );
+    } catch {
+      return Response.json(
+        { error: kakaoDown === 'quota' ? '오늘 가게 검색 한도를 다 썼어요. 내일 다시 와 주세요!' : '가게 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' },
+        { status: 503 }
+      );
+    }
+  } else if (!places) {
     try {
       places = await searchOsmRestaurants({ lat, lng, radius });
       sources.places = 'osm';
@@ -63,8 +85,9 @@ export async function GET(req) {
   // 3) 네이버 블로그 후기 수는 여기서 기다리지 않음 → 화면이 /api/blog 로 나중에 따로 받아 감
   //    (가게 목록과 지도를 먼저 빠르게 보여주기 위해)
   places = places.map((p) => ({ ...p, blogCount: null }));
-  if (naverEnabled()) sources.blog = 'naver';
-  const blogLimit = Number(process.env.NAVER_MAX_LOOKUPS) || 100;
+  if (naverEnabled()) sources.blog = isBlocked('naver') ? 'quota' : 'naver';
+  // 한 번 방문할 때 후기 수를 조회할 가게 수 (가까운 순). 네이버 하루 한도를 아끼려고 40곳으로 제한
+  const blogLimit = Number(process.env.NAVER_MAX_LOOKUPS) || 40;
 
   // 4) 공공데이터 인허가 정보 (CSV 또는 API가 설정돼 있을 때만)
   try {
