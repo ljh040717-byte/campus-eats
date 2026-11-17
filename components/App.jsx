@@ -5,7 +5,7 @@ import MapView from './MapView';
 import LottoDraw, { GROUP_PASTEL } from './LottoDraw';
 import Mascot from './Mascot';
 import { sfx, isMuted, setMuted } from '@/lib/sfx';
-import { filterAndScore, isNew, isOld, subCategory, foodGroup, foodColors, FOOD_GROUPS, FOOD_COLORS } from '@/lib/score';
+import { filterAndScore, isNew, isOld, subCategory, foodGroup, foodColors, FOOD_GROUPS, FOOD_COLORS, WALK_M_PER_MIN, DETOUR } from '@/lib/score';
 
 const RADII = [300, 500, 1000, 1500];
 const SORTS = [
@@ -91,6 +91,13 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
   const [hideClosed, setHideClosed] = useState(true);
   const [weatherOn, setWeatherOn] = useState(false);
   const [gongang, setGongang] = useState({ on: false, left: 50, eat: 20, wait: 5 });
+  const [quick, setQuick] = useState(false); // 🚨 빠밥 버튼 (공강 시간과 상관없이 급한 모드)
+
+  // 공강 모드가 켜지면 위에서 고른 반경 대신, 남은 시간으로 걸어갈 수 있는 거리가 반경이 됨
+  //   편도 시간 = (다음 수업까지 − 식사 − 주문·대기) ÷ 2  →  거리 = 편도 시간 × 보행 속도 ÷ 돌아가는 길 보정
+  const walkBudget = (gongang.left - gongang.eat - gongang.wait) / 2; // 편도로 걸을 수 있는 분
+  const gongRadius = Math.max(0, Math.min(Math.max(...RADII), Math.floor((walkBudget * WALK_M_PER_MIN) / DETOUR)));
+  const effRadius = gongang.on ? Math.max(gongRadius, 1) : radius;
 
   const [data, setData] = useState({ places: [], sources: null, warnings: [] });
   const [weather, setWeather] = useState(null);
@@ -210,13 +217,13 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
     const group = {};
     const color = {};
     data.places.forEach((p) => {
-      if (p.distance > radius) return;
+      if (p.distance > effRadius) return;
       const g = foodGroup(p);
       group[g] = (group[g] || 0) + 1;
       foodColors(p).forEach((c) => (color[c] = (color[c] || 0) + 1));
     });
     return { group, color };
-  }, [data.places, radius]);
+  }, [data.places, effRadius]);
 
   // 후기 수가 하나라도 있어야 추천순·후기순이 의미가 있음 (0개도 데이터로 인정)
   const hasBlog = data.places.some((p) => p.blogCount != null);
@@ -224,10 +231,10 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
   const list = useMemo(
     () =>
       filterAndScore(data.places, {
-        radius, categories, colors, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather,
+        radius: effRadius, categories, colors, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather,
         sort: hasBlog ? sort : 'distance',
       }),
-    [data.places, radius, categories, colors, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather, sort, hasBlog]
+    [data.places, effRadius, categories, colors, newOnly, oldOnly, hideClosed, gongang, weatherOn, weather, sort, hasBlog]
   );
 
   const hasLicense = data.places.some((p) => p.license);
@@ -300,7 +307,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
   const blogLoading = blogProgress && blogProgress.done < blogProgress.total;
 
   // 🚨 빠밥 모드: 공강 모드에서 다음 수업까지 1시간 이내면 화면이 빨개지고 사이렌이 울림
-  const rush = gongang.on && gongang.left <= 60;
+  const rush = quick || (gongang.on && gongang.left <= 60);
   const [siren, setSiren] = useState(false);
   const alerted = useRef(false);
   useEffect(() => {
@@ -315,7 +322,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
   }, [rush]);
   useEffect(() => {
     if (!siren) return undefined;
-    const t = setTimeout(() => setSiren(false), 2600);
+    const t = setTimeout(() => setSiren(false), 1200);
     return () => clearTimeout(t);
   }, [siren]);
 
@@ -325,13 +332,13 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
         <div className="rush" role="alertdialog" aria-label="빠밥하자" onClick={() => setSiren(false)}>
           <span className="rush-light" aria-hidden="true">🚨</span>
           <p className="rush-title" aria-hidden="true"><i>빠</i><i>밥</i><i>하</i><i>자</i></p>
-          <p className="rush-sub">다음 수업까지 <b>{gongang.left}분</b>! 얼른 먹으러 가요</p>
+          <p className="rush-sub">{gongang.on ? <>다음 수업까지 <b>{gongang.left}분</b>!</> : <>얼른 먹고 오자!</>}</p>
         </div>
       )}
-      {drawing && <LottoDraw candidates={list} onDone={finishDraw} onClose={() => setDrawing(false)} />}
+      {drawing && <LottoDraw candidates={list} rush={rush} onDone={finishDraw} onClose={() => setDrawing(false)} />}
       {/* ── 전체 화면 지도 ── */}
       <div className="map-layer">
-        <MapView center={center} radius={radius} places={list} selectedId={selectedId} onSelect={select} pickIds={pickIds} />
+        <MapView center={center} radius={gongang.on ? Math.max(effRadius, 50) : radius} places={list} selectedId={selectedId} onSelect={select} pickIds={pickIds} />
       </div>
 
       {/* ── 지도 위 음식 종류 알약 버튼 ── */}
@@ -387,7 +394,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
           <button className="rush-strip" onClick={() => { setSiren(true); sfx.siren(); }} title="사이렌 다시 울리기">
             <span className="rush-strip-light" aria-hidden="true">🚨</span>
             <b>빠 밥 하 자</b>
-            <em>{gongang.left}분 남았어요!</em>
+            <em>{gongang.on ? `${gongang.left}분 남았어요!` : '얼른 먹고 오자!'}</em>
           </button>
         )}
 
@@ -406,7 +413,13 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
 
           <section className="block">
             <h2>📏 얼마나 멀리?</h2>
-            <Segmented label="반경" value={radius} onChange={setRadius} options={RADII.map((r) => [r, r >= 1000 ? `${r / 1000}km` : `${r}m`])} />
+            <Segmented label="반경" value={gongang.on ? null : radius} onChange={setRadius}
+              options={RADII.map((r) => [r, r >= 1000 ? `${r / 1000}km` : `${r}m`, gongang.on])} />
+            {gongang.on && (
+              <p className="hint hint--gong">
+                ⏱️ 공강 모드가 거리를 정하고 있어요 · {gongRadius <= 0 ? <b>시간이 부족해요</b> : gongRadius >= Math.max(...RADII) ? <b>시간 넉넉! 1.5km 전부</b> : <b>약 {Math.round(gongRadius / 10) * 10}m (편도 {Math.floor(walkBudget)}분)</b>}
+              </p>
+            )}
             <h2>↕️ 어떤 순서로?</h2>
             <Segmented
               label="정렬"
@@ -438,13 +451,14 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
             <h2>✨ 특별 필터</h2>
             <div className="chips">
               <Chip icon="⏱️" on={gongang.on} onClick={() => setGongang({ ...gongang, on: !gongang.on })}>공강 모드</Chip>
+              <Chip icon="🚨" on={quick} title="급하게 먹어야 할 때!" onClick={() => setQuick(!quick)}>빠밥</Chip>
             </div>
             {gongang.on && (
               <div className="gongang">
                 <NumberField label="다음 수업까지" unit="분" value={gongang.left} onChange={(v) => setGongang({ ...gongang, left: v })} />
                 <NumberField label="식사 시간" unit="분" value={gongang.eat} onChange={(v) => setGongang({ ...gongang, eat: v })} />
                 <NumberField label="주문·대기" unit="분" value={gongang.wait} onChange={(v) => setGongang({ ...gongang, wait: v })} />
-                <p className="hint">왕복 도보 + 식사 + 대기 시간이 남은 시간 안에 들어오는 곳만 보여줘요.</p>
+                <p className="hint">왕복 도보 + 식사 + 대기 시간이 남은 시간 안에 들어오는 곳만 보여줘요. 위에서 고른 거리보다 이 시간이 먼저예요.</p>
               </div>
             )}
             <button className="roulette" onClick={roulette} disabled={!list.length}>
@@ -524,7 +538,7 @@ export default function App({ defaultCenter, centerName, edition = '공릉편' }
               );
             })}
           </ol>
-          {!loading && !error && list.length === 0 && <p className="empty">🥲 조건에 맞는 곳이 없어요.<br />필터를 조금 풀어보세요!</p>}
+          {!loading && !error && list.length === 0 && <p className="empty">{gongang.on && gongRadius <= 0 ? <>⏰ 시간이 부족해요!<br />남은 시간을 늘리거나 식사 시간을 줄여보세요.</> : <>🥲 조건에 맞는 곳이 없어요.<br />필터를 조금 풀어보세요!</>}</p>}
 
           {data.sources && (
             <dl className="sources">

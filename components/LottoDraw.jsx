@@ -43,7 +43,7 @@ function shuffle(arr) {
 
 const ease = (k) => k * k * (3 - 2 * k);
 
-export default function LottoDraw({ candidates, onDone, onClose }) {
+export default function LottoDraw({ candidates, onDone, onClose, rush = false }) {
   const canvas = useRef(null);
   const [picks, setPicks] = useState([]);
   const [phase, setPhase] = useState('mix'); // mix → reveal
@@ -89,7 +89,8 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
     const start = performance.now();
     let raf;
     let next = 0; // 다음에 나올 공 번호
-    let nextAt = start + MIX_MS;
+    const sp = rush ? 0.65 : 1; // 빠밥 모드에서는 전부 더 빠르게
+    let nextAt = start + MIX_MS * sp;
     let finished = false;
     let lastTick = 0;
 
@@ -262,11 +263,11 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
         b.x = b.from.x + (CX - b.from.x) * e;
         b.y = b.from.y + (CY + R - BR - 6 - b.from.y) * e;
         b.rot += 0.25;
-        if (k >= 1) Object.assign(b, { state: 'chute', t0: now, dur: CHUTE_MS, from: { x: b.x, y: b.y } });
+        if (k >= 1) Object.assign(b, { state: 'chute', t0: now, dur: CHUTE_MS * sp, from: { x: b.x, y: b.y } });
       } else if (b.state === 'chute') {
         b.x = b.from.x + (OUT.x - b.from.x) * e;
         b.y = b.from.y + (OUT.y - b.from.y) * e;
-        if (k >= 1) Object.assign(b, { state: 'pop', t0: now, dur: POP_MS, from: { x: OUT.x, y: OUT.y } });
+        if (k >= 1) Object.assign(b, { state: 'pop', t0: now, dur: POP_MS * sp, from: { x: OUT.x, y: OUT.y } });
       } else if (b.state === 'pop') {
         // 배출구에서 튀어나와 자기 칸으로 콩콩
         const tx = SLOTS[b.order];
@@ -291,20 +292,20 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
       const mixing = next < N_PICK;
       if (mixing && now >= nextAt && pickBalls[next].state === 'dome') {
         const b = pickBalls[next];
-        Object.assign(b, { state: 'exit', t0: now, dur: EXIT_MS, from: { x: b.x, y: b.y } });
+        Object.assign(b, { state: 'exit', t0: now, dur: EXIT_MS * sp, from: { x: b.x, y: b.y } });
         sfx.roll();
         next += 1;
-        nextAt = now + GAP_MS;
+        nextAt = now + GAP_MS * sp;
       }
-      const blow = mixing ? Math.min(1, t / 300) * (1.3 + 0.35 * Math.sin(t / 130)) : 0.25;
+      const blow = mixing ? Math.min(1, t / 300) * (1.3 + 0.35 * Math.sin(t / 130)) * (rush ? 1.3 : 1) : 0.25;
       physics(blow);
       for (const b of pickBalls) if (['exit', 'chute', 'pop'].includes(b.state)) moveBall(b, now);
 
-      if (mixing && now - lastTick > 95) {
+      if (mixing && now - lastTick > (rush ? 55 : 95)) {
         lastTick = now;
         sfx.tick(); // 통 안에서 달그락달그락
       }
-      const shake = mixing ? Math.sin(t / 45) * 2.2 : 0;
+      const shake = mixing ? Math.sin(t / (rush ? 22 : 45)) * (rush ? 5.5 : 2.2) : 0; // 급할 땐 통이 덜덜덜
       ctx.clearRect(0, 0, W, H);
       for (const b of pickBalls) if (b.state === 'chute') drawBall(b); // 몸통 뒤로 지나감
       drawBody(t, mixing);
@@ -342,9 +343,13 @@ export default function LottoDraw({ candidates, onDone, onClose }) {
   const reveal = phase === 'reveal';
 
   return (
-    <div className="lotto" role="dialog" aria-modal="true" aria-label="오늘 뭐 먹지? 랜덤 뽑기">
+    <div className={`lotto${rush ? ' lotto--rush' : ''}`} role="dialog" aria-modal="true" aria-label="오늘 뭐 먹지? 랜덤 뽑기">
       <button className="lotto-close" onClick={onClose} aria-label="닫기">✕</button>
-      <p className="lotto-title">{reveal ? '오늘의 후보 3!' : '두구두구…'}</p>
+      <p className="lotto-title">
+        {rush && <span className="lotto-siren" aria-hidden="true">🚨</span>}
+        {rush ? (reveal ? '얼른 골라!!' : '빨리빨리!!') : reveal ? '오늘의 후보 3!' : '두구두구…'}
+        {rush && <span className="lotto-siren" aria-hidden="true">🚨</span>}
+      </p>
 
       <canvas ref={canvas} className="lotto-canvas" style={{ width: W, height: H, display: reveal ? 'none' : 'block' }} />
 
